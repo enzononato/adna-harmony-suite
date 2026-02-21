@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -30,7 +30,7 @@ const Agenda = () => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
 
-  // Form state
+  // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
   const [newPacienteSearch, setNewPacienteSearch] = useState("");
   const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
@@ -38,6 +38,16 @@ const Agenda = () => {
   const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
   const [newHorario, setNewHorario] = useState("");
   const [newObs, setNewObs] = useState("");
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPaciente, setEditPaciente] = useState("");
+  const [editPacienteSearch, setEditPacienteSearch] = useState("");
+  const [showEditPacienteDropdown, setShowEditPacienteDropdown] = useState(false);
+  const [editProcedimentoId, setEditProcedimentoId] = useState("");
+  const [editData, setEditData] = useState("");
+  const [editHorario, setEditHorario] = useState("");
+  const [editObs, setEditObs] = useState("");
 
   const fetchData = async () => {
     const [pRes, aRes, pacRes] = await Promise.all([
@@ -50,7 +60,44 @@ const Agenda = () => {
     if (pacRes.data) setPacientes(pacRes.data);
   };
 
+  // Copy past appointments to patient history (tratamentos)
+  const syncPastToHistory = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { data: pastAppts } = await supabase
+      .from("agendamentos")
+      .select("*, procedimentos(nome)")
+      .lt("data", todayStr);
+
+    if (!pastAppts || pastAppts.length === 0) return;
+
+    const { data: allPacientes } = await supabase.from("pacientes").select("id, nome");
+    if (!allPacientes) return;
+    const nameToId = new Map(allPacientes.map(p => [p.nome, p.id]));
+
+    // Get existing tratamentos to avoid duplicates
+    const { data: existingTrats } = await supabase.from("tratamentos").select("paciente_id, procedimento, data");
+    const existingSet = new Set(
+      (existingTrats || []).map(t => `${t.paciente_id}|${t.procedimento}|${t.data}`)
+    );
+
+    for (const appt of pastAppts) {
+      const pacienteId = nameToId.get(appt.paciente_nome);
+      if (!pacienteId) continue;
+      const procedimentoNome = (appt as Agendamento).procedimentos?.nome || "Procedimento";
+      const key = `${pacienteId}|${procedimentoNome}|${appt.data}`;
+      if (existingSet.has(key)) continue;
+
+      await supabase.from("tratamentos").insert({
+        paciente_id: pacienteId,
+        procedimento: procedimentoNome,
+        data: appt.data,
+        notas: appt.observacoes || null,
+      });
+    }
+  };
+
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => { syncPastToHistory(); }, []);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -64,7 +111,6 @@ const Agenda = () => {
 
   const dayAppointments = agendamentos.filter(a => a.data === selectedDateStr);
 
-  // Check which days in the current month have appointments
   const daysWithAppts = new Set(
     agendamentos
       .filter(a => {
@@ -97,9 +143,39 @@ const Agenda = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Excluir este agendamento?")) return;
     const { error } = await supabase.from("agendamentos").delete().eq("id", id);
     if (error) { toast.error("Erro ao excluir."); return; }
     toast.success("Agendamento excluído.");
+    fetchData();
+  };
+
+  const startEdit = (a: Agendamento) => {
+    setEditingId(a.id);
+    setEditPaciente(a.paciente_nome);
+    setEditPacienteSearch(a.paciente_nome);
+    setEditProcedimentoId(a.procedimento_id);
+    setEditData(a.data);
+    setEditHorario(a.horario);
+    setEditObs(a.observacoes || "");
+    setShowEditPacienteDropdown(false);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId || !editPaciente || !editProcedimentoId || !editHorario) {
+      toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    const { error } = await supabase.from("agendamentos").update({
+      paciente_nome: editPaciente.trim(),
+      procedimento_id: editProcedimentoId,
+      data: editData,
+      horario: editHorario,
+      observacoes: editObs.trim() || null,
+    }).eq("id", editingId);
+    if (error) { toast.error("Erro ao atualizar."); return; }
+    toast.success("Agendamento atualizado!");
+    setEditingId(null);
     fetchData();
   };
 
@@ -112,6 +188,8 @@ const Agenda = () => {
     if (selectedDateStr) setNewData(selectedDateStr);
     setShowNewModal(true);
   };
+
+  const inputCls = "px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30";
 
   return (
     <AppLayout>
@@ -189,7 +267,7 @@ const Agenda = () => {
               <p className="text-xs uppercase tracking-widest text-muted-foreground font-body">
                 {selectedDay ? `${selectedDay} de ${MONTHS[month]}` : "Selecione um dia"}
               </p>
-              <h3 className="font-display text-xl mt-0.5">Consultas</h3>
+              <h3 className="font-display text-xl mt-0.5">Cronograma</h3>
             </div>
 
             {dayAppointments.length === 0 ? (
@@ -215,9 +293,14 @@ const Agenda = () => {
                       </div>
                       <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
                     </div>
-                    <button onClick={() => handleDelete(a.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1 self-start" title="Excluir">
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all self-start">
+                      <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -225,6 +308,68 @@ const Agenda = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit appointment modal */}
+      {editingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setEditingId(null)} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-md p-6">
+            <div className="h-0.5 w-full rounded-full mb-6" style={{ background: "var(--gradient-gold)" }} />
+            <h3 className="font-display text-2xl mb-5">Editar Agendamento</h3>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1 relative">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente *</label>
+                <input type="text" value={editPacienteSearch}
+                  onChange={e => { setEditPacienteSearch(e.target.value); setEditPaciente(""); setShowEditPacienteDropdown(true); }}
+                  onFocus={() => setShowEditPacienteDropdown(true)}
+                  placeholder="Buscar paciente..."
+                  className={`${inputCls} ${editPaciente ? "bg-accent border-primary/40" : ""}`} />
+                {editPaciente && <p className="text-[11px] text-primary font-body mt-0.5">✓ {editPaciente}</p>}
+                {showEditPacienteDropdown && !editPaciente && (
+                  <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded-xl shadow-card max-h-40 overflow-y-auto">
+                    {pacientes.filter(p => p.nome.toLowerCase().includes(editPacienteSearch.toLowerCase())).length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground font-body">Nenhum paciente encontrado.</p>
+                    ) : (
+                      pacientes.filter(p => p.nome.toLowerCase().includes(editPacienteSearch.toLowerCase())).map(p => (
+                        <button key={p.id} type="button"
+                          onClick={() => { setEditPaciente(p.nome); setEditPacienteSearch(p.nome); setShowEditPacienteDropdown(false); }}
+                          className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
+                          <User size={12} className="text-muted-foreground" />{p.nome}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
+                <select value={editProcedimentoId} onChange={e => setEditProcedimentoId(e.target.value)} className={inputCls}>
+                  <option value="">Selecione</option>
+                  {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
+                <input type="date" value={editData} onChange={e => setEditData(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
+                <input type="time" value={editHorario} onChange={e => setEditHorario(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
+                <textarea rows={2} value={editObs} onChange={e => setEditObs(e.target.value)} className={inputCls + " resize-none"} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditingId(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
+              <button onClick={handleUpdate} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
+                Salvar alterações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New appointment modal */}
       {showNewModal && (
@@ -240,7 +385,7 @@ const Agenda = () => {
                   onChange={e => { setNewPacienteSearch(e.target.value); setNewPaciente(""); setShowPacienteDropdown(true); }}
                   onFocus={() => setShowPacienteDropdown(true)}
                   placeholder="Buscar paciente cadastrado..."
-                  className={`px-3 py-2 rounded-lg border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 ${newPaciente ? "bg-accent border-primary/40" : "bg-muted border-border"}`} />
+                  className={`${inputCls} ${newPaciente ? "bg-accent border-primary/40" : ""}`} />
                 {newPaciente && (
                   <p className="text-[11px] text-primary font-body mt-0.5">✓ {newPaciente}</p>
                 )}
@@ -263,8 +408,7 @@ const Agenda = () => {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
-                <select value={newProcedimentoId} onChange={e => setNewProcedimentoId(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <select value={newProcedimentoId} onChange={e => setNewProcedimentoId(e.target.value)} className={inputCls}>
                   <option value="">Selecione um procedimento</option>
                   {procedimentos.map(p => (
                     <option key={p.id} value={p.id}>{p.nome}</option>
@@ -273,18 +417,15 @@ const Agenda = () => {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
-                <input type="date" value={newData} onChange={e => setNewData(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <input type="date" value={newData} onChange={e => setNewData(e.target.value)} className={inputCls} />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
-                <input type="time" value={newHorario} onChange={e => setNewHorario(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <input type="time" value={newHorario} onChange={e => setNewHorario(e.target.value)} className={inputCls} />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
-                <textarea rows={2} value={newObs} onChange={e => setNewObs(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+                <textarea rows={2} value={newObs} onChange={e => setNewObs(e.target.value)} className={inputCls + " resize-none"} />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
