@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      entradas: {
+        Row: {
+          created_at: string
+          data: string
+          forma_pagamento: string
+          id: string
+          observacoes: string | null
+          paciente_nome: string
+          procedimento_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          forma_pagamento?: string
+          id?: string
+          observacoes?: string | null
+          paciente_nome: string
+          procedimento_id: string
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          forma_pagamento?: string
+          id?: string
+          observacoes?: string | null
+          paciente_nome?: string
+          procedimento_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entradas_procedimento_id_fkey"
+            columns: ["procedimento_id"]
+            isOneToOne: false
+            referencedRelation: "procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procedimentos: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      saidas: {
+        Row: {
+          categoria: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          observacoes: string | null
+          valor: number
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          data?: string
+          descricao: string
+          id?: string
+          observacoes?: string | null
+          valor: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          observacoes?: string | null
+          valor?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
