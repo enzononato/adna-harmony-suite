@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download } from "lucide-react";
+import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -49,6 +49,13 @@ const Pacientes = () => {
   // Edit anamnesis
   const [editingAnam, setEditingAnam] = useState(false);
   const [anamText, setAnamText] = useState("");
+
+  // Edit patient info
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [editNome, setEditNome] = useState("");
+  const [editTel, setEditTel] = useState("");
+  const [editDob, setEditDob] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   // Upload in detail view
   const detailFileRef = useRef<HTMLInputElement>(null);
@@ -159,6 +166,29 @@ const Pacientes = () => {
     fetchData();
   };
 
+  const startEditingInfo = () => {
+    if (!selected) return;
+    setEditNome(selected.nome);
+    setEditTel(selected.telefone);
+    setEditDob(selected.data_nascimento || "");
+    setEditEmail(selected.email || "");
+    setEditingInfo(true);
+  };
+
+  const handleSaveInfo = async () => {
+    if (!selectedId || !editNome.trim()) { toast.error("Nome é obrigatório."); return; }
+    const { error } = await supabase.from("pacientes").update({
+      nome: editNome.trim(),
+      telefone: editTel.trim(),
+      data_nascimento: editDob || null,
+      email: editEmail.trim() || null,
+    }).eq("id", selectedId);
+    if (error) { toast.error("Erro ao salvar."); return; }
+    toast.success("Dados atualizados!");
+    setEditingInfo(false);
+    fetchData();
+  };
+
   const whatsappLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "")}`;
 
   return (
@@ -166,38 +196,59 @@ const Pacientes = () => {
       <div className="max-w-5xl mx-auto">
         {selected ? (
           <div>
-            <button onClick={() => { setSelectedId(null); setEditingAnam(false); }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 font-body">
+            <button onClick={() => { setSelectedId(null); setEditingAnam(false); setEditingInfo(false); }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 font-body">
               <ArrowLeft size={15} /> Voltar para Pacientes
             </button>
 
             {/* Patient header */}
             <div className="bg-card rounded-2xl border border-border shadow-card p-6 mb-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-display font-medium bg-accent text-primary">
-                    {getInitials(selected.nome)}
+              {editingInfo ? (
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><label className={labelCls}>Nome completo *</label><input value={editNome} onChange={e => setEditNome(e.target.value)} className={inputCls} /></div>
+                    <div><label className={labelCls}>Telefone (WhatsApp)</label><input value={editTel} onChange={e => setEditTel(e.target.value)} className={inputCls} placeholder="5511999990000" /></div>
+                    <div><label className={labelCls}>Data de nascimento</label><input type="date" value={editDob} onChange={e => setEditDob(e.target.value)} className={inputCls} /></div>
+                    <div><label className={labelCls}>E-mail</label><input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className={inputCls} /></div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-display">{selected.nome}</h2>
-                    <div className="flex flex-wrap gap-4 mt-1">
-                      {calcAge(selected.data_nascimento) !== null && <span className="text-sm text-muted-foreground font-body">{calcAge(selected.data_nascimento)} anos</span>}
-                      {selected.email && <span className="text-sm text-muted-foreground font-body">{selected.email}</span>}
-                      <span className="text-sm text-muted-foreground font-body">{selectedTrats.length} tratamento(s)</span>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => setEditingInfo(false)} className="px-4 py-2 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
+                    <button onClick={handleSaveInfo} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-body font-medium hover:opacity-90 transition-opacity">
+                      <Save size={14} /> Salvar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-display font-medium bg-accent text-primary">
+                      {getInitials(selected.nome)}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-display">{selected.nome}</h2>
+                      <div className="flex flex-wrap gap-4 mt-1">
+                        {calcAge(selected.data_nascimento) !== null && <span className="text-sm text-muted-foreground font-body">{calcAge(selected.data_nascimento)} anos</span>}
+                        {selected.telefone && <span className="text-sm text-muted-foreground font-body">📱 {selected.telefone}</span>}
+                        {selected.email && <span className="text-sm text-muted-foreground font-body">{selected.email}</span>}
+                        <span className="text-sm text-muted-foreground font-body">{selectedTrats.length} tratamento(s)</span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex gap-2 self-start sm:self-auto">
+                    <button onClick={startEditingInfo} className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors" title="Editar dados">
+                      <Pencil size={16} />
+                    </button>
+                    {selected.telefone && (
+                      <a href={whatsappLink(selected.telefone)} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "#25D366", color: "#fff" }}>
+                        <MessageCircle size={16} /> WhatsApp
+                      </a>
+                    )}
+                    <button onClick={() => handleDeletePatient(selected.id)} className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors" title="Excluir paciente">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 self-start sm:self-auto">
-                  {selected.telefone && (
-                    <a href={whatsappLink(selected.telefone)} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "#25D366", color: "#fff" }}>
-                      <MessageCircle size={16} /> WhatsApp
-                    </a>
-                  )}
-                  <button onClick={() => handleDeletePatient(selected.id)} className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors" title="Excluir paciente">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Tabs */}
