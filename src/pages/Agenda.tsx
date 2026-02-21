@@ -1,43 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
 import { ChevronLeft, ChevronRight, Plus, Clock, User } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-const PROCEDURES = [
-  { color: "salmon", label: "Toxina Botulínica" },
-  { color: "gold", label: "Preenchimento" },
-  { color: "sand", label: "Bioestimulador" },
-];
-
-const mockAppointments: Record<string, { time: string; patient: string; procedure: string; color: string }[]> = {
+const mockAppointments: Record<string, { time: string; patient: string; procedure: string }[]> = {
   "15": [
-    { time: "09:00", patient: "Ana Paula Souza", procedure: "Toxina Botulínica", color: "salmon" },
-    { time: "11:00", patient: "Carla Mendes", procedure: "Preenchimento Labial", color: "gold" },
+    { time: "09:00", patient: "Ana Paula Souza", procedure: "Tratamento de manchas" },
+    { time: "11:00", patient: "Carla Mendes", procedure: "Limpeza de pele" },
   ],
   "16": [
-    { time: "10:30", patient: "Fernanda Lima", procedure: "Bioestimulador", color: "sand" },
+    { time: "10:30", patient: "Fernanda Lima", procedure: "Consulta" },
   ],
   "18": [
-    { time: "14:00", patient: "Juliana Costa", procedure: "Toxina Botulínica", color: "salmon" },
-    { time: "15:30", patient: "Mariana Rocha", procedure: "Fios de PDO", color: "gold" },
-    { time: "17:00", patient: "Renata Alves", procedure: "Skinbooster", color: "sand" },
+    { time: "14:00", patient: "Juliana Costa", procedure: "Flacidez facial" },
+    { time: "15:30", patient: "Mariana Rocha", procedure: "Gordura localizada" },
+    { time: "17:00", patient: "Renata Alves", procedure: "Celulite" },
   ],
   "20": [
-    { time: "09:00", patient: "Tatiana Cruz", procedure: "Preenchimento Nasal", color: "gold" },
+    { time: "09:00", patient: "Tatiana Cruz", procedure: "Consulta" },
   ],
-};
-
-const colorMap: Record<string, string> = {
-  salmon: "hsl(var(--salmon))",
-  gold: "hsl(var(--gold))",
-  sand: "hsl(var(--sand-dark))",
-};
-const bgMap: Record<string, string> = {
-  salmon: "hsl(12 72% 72% / 0.12)",
-  gold: "hsl(43 72% 47% / 0.12)",
-  sand: "hsl(36 20% 82% / 0.5)",
 };
 
 type ViewMode = "mensal" | "semanal" | "diario";
@@ -49,6 +33,16 @@ const Agenda = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
+  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string }[]>([]);
+  const [newProcedimentoId, setNewProcedimentoId] = useState("");
+
+  useEffect(() => {
+    const fetchProcedimentos = async () => {
+      const { data } = await supabase.from("procedimentos").select("id, nome").order("nome");
+      if (data) setProcedimentos(data);
+    };
+    fetchProcedimentos();
+  }, []);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -65,10 +59,9 @@ const Agenda = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-body mb-1">Gerenciamento</p>
-            <h1 className="text-3xl font-display" style={{ color: "hsl(var(--foreground))" }}>Agenda</h1>
+            <h1 className="text-3xl font-display text-foreground">Agenda</h1>
           </div>
           <div className="flex items-center gap-3">
-            {/* View tabs */}
             <div className="flex rounded-lg overflow-hidden border border-border bg-muted p-0.5 gap-0.5">
               {(["mensal", "semanal", "diario"] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => setView(v)}
@@ -79,7 +72,7 @@ const Agenda = () => {
               ))}
             </div>
             <button
-              onClick={() => setShowNewModal(true)}
+              onClick={() => { setNewProcedimentoId(""); setShowNewModal(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90"
               style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))", boxShadow: "var(--shadow-gold)" }}>
               <Plus size={15} />
@@ -93,18 +86,16 @@ const Agenda = () => {
           <div className="bg-card rounded-2xl border border-border shadow-card p-6">
             <div className="flex items-center justify-between mb-6">
               <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><ChevronLeft size={18} /></button>
-              <h2 className="font-display text-xl" style={{ color: "hsl(var(--primary))" }}>{MONTHS[month]} {year}</h2>
+              <h2 className="font-display text-xl text-primary">{MONTHS[month]} {year}</h2>
               <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><ChevronRight size={18} /></button>
             </div>
 
-            {/* Day headers */}
             <div className="grid grid-cols-7 mb-2">
               {DAYS.map(d => (
                 <div key={d} className="text-center text-[10px] uppercase tracking-widest text-muted-foreground font-body py-1">{d}</div>
               ))}
             </div>
 
-            {/* Days grid */}
             <div className="grid grid-cols-7 gap-1">
               {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -122,24 +113,14 @@ const Agenda = () => {
                     {day}
                     {hasAppts && !isSelected && (
                       <span className="absolute bottom-1 flex gap-0.5">
-                        {(mockAppointments[String(day)] ?? []).slice(0, 3).map((a, idx) => (
-                          <span key={idx} className="w-1 h-1 rounded-full" style={{ background: colorMap[a.color] }} />
+                        {(mockAppointments[String(day)] ?? []).slice(0, 3).map((_, idx) => (
+                          <span key={idx} className="w-1 h-1 rounded-full bg-primary" />
                         ))}
                       </span>
                     )}
                   </button>
                 );
               })}
-            </div>
-
-            {/* Legend */}
-            <div className="flex gap-4 mt-6 pt-5 border-t border-border flex-wrap">
-              {PROCEDURES.map(p => (
-                <div key={p.label} className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ background: colorMap[p.color] }} />
-                  <span className="text-[10px] text-muted-foreground font-body">{p.label}</span>
-                </div>
-              ))}
             </div>
           </div>
 
@@ -154,7 +135,7 @@ const Agenda = () => {
 
             {appointments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3" style={{ background: "hsl(var(--gold-light))" }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-accent">
                   <CalendarIcon />
                 </div>
                 <p className="text-sm text-muted-foreground font-body">Nenhuma consulta neste dia</p>
@@ -162,12 +143,12 @@ const Agenda = () => {
             ) : (
               <div className="flex flex-col gap-3">
                 {appointments.map((a, i) => (
-                  <div key={i} className="flex gap-3 p-3 rounded-xl" style={{ background: bgMap[a.color] }}>
+                  <div key={i} className="flex gap-3 p-3 rounded-xl bg-accent/40">
                     <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                      <Clock size={12} style={{ color: colorMap[a.color] }} />
-                      <span className="text-xs font-body font-medium" style={{ color: colorMap[a.color] }}>{a.time}</span>
+                      <Clock size={12} className="text-primary" />
+                      <span className="text-xs font-body font-medium text-primary">{a.time}</span>
                     </div>
-                    <div className="h-full w-px" style={{ background: colorMap[a.color], opacity: 0.3 }} />
+                    <div className="h-full w-px bg-primary/30" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <User size={11} className="text-muted-foreground flex-shrink-0" />
@@ -191,14 +172,34 @@ const Agenda = () => {
             <div className="h-0.5 w-full rounded-full mb-6" style={{ background: "var(--gradient-gold)" }} />
             <h3 className="font-display text-2xl mb-5">Novo Agendamento</h3>
             <div className="flex flex-col gap-4">
-              {["Paciente", "Procedimento", "Data", "Horário", "Observações"].map((f, i) => (
-                <div key={f} className="flex flex-col gap-1">
-                  <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">{f}</label>
-                  {i === 4
-                    ? <textarea rows={2} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
-                    : <input type={f === "Data" ? "date" : f === "Horário" ? "time" : "text"} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />}
-                </div>
-              ))}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente</label>
+                <input type="text" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento</label>
+                <select
+                  value={newProcedimentoId}
+                  onChange={(e) => setNewProcedimentoId(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="">Selecione um procedimento</option>
+                  {procedimentos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data</label>
+                <input type="date" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário</label>
+                <input type="time" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
+                <textarea rows={2} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+              </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowNewModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
