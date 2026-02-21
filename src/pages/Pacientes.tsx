@@ -409,11 +409,9 @@ const Pacientes = () => {
               <div><label className={labelCls}>Telefone (WhatsApp)</label><input value={newTel} onChange={e => setNewTel(e.target.value)} className={inputCls} placeholder="5511999990000" /></div>
               <div><label className={labelCls}>Data de nascimento</label><input type="date" value={newDob} onChange={e => setNewDob(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>E-mail</label><input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Anamnese</label><textarea value={newAnam} onChange={e => setNewAnam(e.target.value)} rows={3} className={inputCls + " resize-none"} placeholder="Alergias, medicamentos, comorbidades..." /></div>
-
-              {/* File upload */}
+              {/* Anamnese - file upload */}
               <div>
-                <label className={labelCls}>Arquivos</label>
+                <label className={labelCls}>Anamnese (anexar arquivo)</label>
                 <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={e => {
                   if (e.target.files) setNewFiles(prev => [...prev, ...Array.from(e.target.files!)]);
                 }} />
