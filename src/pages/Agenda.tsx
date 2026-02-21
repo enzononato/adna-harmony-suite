@@ -28,21 +28,26 @@ const Agenda = () => {
   const [showNewModal, setShowNewModal] = useState(false);
   const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
 
   // Form state
   const [newPaciente, setNewPaciente] = useState("");
+  const [newPacienteSearch, setNewPacienteSearch] = useState("");
+  const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
   const [newProcedimentoId, setNewProcedimentoId] = useState("");
   const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
   const [newHorario, setNewHorario] = useState("");
   const [newObs, setNewObs] = useState("");
 
   const fetchData = async () => {
-    const [pRes, aRes] = await Promise.all([
+    const [pRes, aRes, pacRes] = await Promise.all([
       supabase.from("procedimentos").select("id, nome").order("nome"),
       supabase.from("agendamentos").select("*, procedimentos(nome)").order("horario"),
+      supabase.from("pacientes").select("id, nome").order("nome"),
     ]);
     if (pRes.data) setProcedimentos(pRes.data);
     if (aRes.data) setAgendamentos(aRes.data as Agendamento[]);
+    if (pacRes.data) setPacientes(pacRes.data);
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -70,9 +75,12 @@ const Agenda = () => {
   );
 
   const handleSave = async () => {
-    if (!newPaciente.trim()) { toast.error("Informe o nome do paciente."); return; }
+    if (!newPaciente) { toast.error("Selecione um paciente cadastrado."); return; }
     if (!newProcedimentoId) { toast.error("Selecione um procedimento."); return; }
     if (!newHorario) { toast.error("Informe o horário."); return; }
+    
+    const paciente = pacientes.find(p => p.nome === newPaciente);
+    if (!paciente) { toast.error("Paciente não cadastrado. Cadastre primeiro na aba Pacientes."); return; }
 
     const { error } = await supabase.from("agendamentos").insert({
       paciente_nome: newPaciente.trim(),
@@ -96,7 +104,7 @@ const Agenda = () => {
   };
 
   const resetForm = () => {
-    setNewPaciente(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs("");
+    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs("");
   };
 
   const openNewModal = () => {
@@ -226,10 +234,32 @@ const Agenda = () => {
             <div className="h-0.5 w-full rounded-full mb-6" style={{ background: "var(--gradient-gold)" }} />
             <h3 className="font-display text-2xl mb-5">Novo Agendamento</h3>
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 relative">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente *</label>
-                <input type="text" value={newPaciente} onChange={e => setNewPaciente(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <input type="text" value={newPacienteSearch} 
+                  onChange={e => { setNewPacienteSearch(e.target.value); setNewPaciente(""); setShowPacienteDropdown(true); }}
+                  onFocus={() => setShowPacienteDropdown(true)}
+                  placeholder="Buscar paciente cadastrado..."
+                  className={`px-3 py-2 rounded-lg border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 ${newPaciente ? "bg-accent border-primary/40" : "bg-muted border-border"}`} />
+                {newPaciente && (
+                  <p className="text-[11px] text-primary font-body mt-0.5">✓ {newPaciente}</p>
+                )}
+                {showPacienteDropdown && !newPaciente && (
+                  <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded-xl shadow-card max-h-40 overflow-y-auto">
+                    {pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground font-body">Nenhum paciente encontrado. Cadastre primeiro.</p>
+                    ) : (
+                      pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).map(p => (
+                        <button key={p.id} type="button"
+                          onClick={() => { setNewPaciente(p.nome); setNewPacienteSearch(p.nome); setShowPacienteDropdown(false); }}
+                          className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
+                          <User size={12} className="text-muted-foreground" />
+                          {p.nome}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
