@@ -1,27 +1,20 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-const mockAppointments: Record<string, { time: string; patient: string; procedure: string }[]> = {
-  "15": [
-    { time: "09:00", patient: "Ana Paula Souza", procedure: "Tratamento de manchas" },
-    { time: "11:00", patient: "Carla Mendes", procedure: "Limpeza de pele" },
-  ],
-  "16": [
-    { time: "10:30", patient: "Fernanda Lima", procedure: "Consulta" },
-  ],
-  "18": [
-    { time: "14:00", patient: "Juliana Costa", procedure: "Flacidez facial" },
-    { time: "15:30", patient: "Mariana Rocha", procedure: "Gordura localizada" },
-    { time: "17:00", patient: "Renata Alves", procedure: "Celulite" },
-  ],
-  "20": [
-    { time: "09:00", patient: "Tatiana Cruz", procedure: "Consulta" },
-  ],
+type Agendamento = {
+  id: string;
+  paciente_nome: string;
+  procedimento_id: string;
+  data: string;
+  horario: string;
+  observacoes: string | null;
+  procedimentos?: { nome: string } | null;
 };
 
 type ViewMode = "mensal" | "semanal" | "diario";
@@ -34,15 +27,25 @@ const Agenda = () => {
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
   const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string }[]>([]);
-  const [newProcedimentoId, setNewProcedimentoId] = useState("");
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
 
-  useEffect(() => {
-    const fetchProcedimentos = async () => {
-      const { data } = await supabase.from("procedimentos").select("id, nome").order("nome");
-      if (data) setProcedimentos(data);
-    };
-    fetchProcedimentos();
-  }, []);
+  // Form state
+  const [newPaciente, setNewPaciente] = useState("");
+  const [newProcedimentoId, setNewProcedimentoId] = useState("");
+  const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
+  const [newHorario, setNewHorario] = useState("");
+  const [newObs, setNewObs] = useState("");
+
+  const fetchData = async () => {
+    const [pRes, aRes] = await Promise.all([
+      supabase.from("procedimentos").select("id, nome").order("nome"),
+      supabase.from("agendamentos").select("*, procedimentos(nome)").order("horario"),
+    ]);
+    if (pRes.data) setProcedimentos(pRes.data);
+    if (aRes.data) setAgendamentos(aRes.data as Agendamento[]);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -50,7 +53,57 @@ const Agenda = () => {
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); };
 
-  const appointments = selectedDay ? (mockAppointments[String(selectedDay)] ?? []) : [];
+  const selectedDateStr = selectedDay
+    ? `${year}-${String(month + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`
+    : null;
+
+  const dayAppointments = agendamentos.filter(a => a.data === selectedDateStr);
+
+  // Check which days in the current month have appointments
+  const daysWithAppts = new Set(
+    agendamentos
+      .filter(a => {
+        const d = new Date(a.data + "T00:00:00");
+        return d.getFullYear() === year && d.getMonth() === month;
+      })
+      .map(a => new Date(a.data + "T00:00:00").getDate())
+  );
+
+  const handleSave = async () => {
+    if (!newPaciente.trim()) { toast.error("Informe o nome do paciente."); return; }
+    if (!newProcedimentoId) { toast.error("Selecione um procedimento."); return; }
+    if (!newHorario) { toast.error("Informe o horário."); return; }
+
+    const { error } = await supabase.from("agendamentos").insert({
+      paciente_nome: newPaciente.trim(),
+      procedimento_id: newProcedimentoId,
+      data: newData,
+      horario: newHorario,
+      observacoes: newObs.trim() || null,
+    });
+    if (error) { toast.error("Erro ao salvar agendamento."); return; }
+    toast.success("Agendamento salvo!");
+    setShowNewModal(false);
+    resetForm();
+    fetchData();
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("agendamentos").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir."); return; }
+    toast.success("Agendamento excluído.");
+    fetchData();
+  };
+
+  const resetForm = () => {
+    setNewPaciente(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs("");
+  };
+
+  const openNewModal = () => {
+    resetForm();
+    if (selectedDateStr) setNewData(selectedDateStr);
+    setShowNewModal(true);
+  };
 
   return (
     <AppLayout>
@@ -72,7 +125,7 @@ const Agenda = () => {
               ))}
             </div>
             <button
-              onClick={() => { setNewProcedimentoId(""); setShowNewModal(true); }}
+              onClick={openNewModal}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90"
               style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))", boxShadow: "var(--shadow-gold)" }}>
               <Plus size={15} />
@@ -102,7 +155,7 @@ const Agenda = () => {
                 const day = i + 1;
                 const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
                 const isSelected = day === selectedDay;
-                const hasAppts = !!mockAppointments[String(day)];
+                const hasAppts = daysWithAppts.has(day);
                 return (
                   <button
                     key={day}
@@ -113,9 +166,7 @@ const Agenda = () => {
                     {day}
                     {hasAppts && !isSelected && (
                       <span className="absolute bottom-1 flex gap-0.5">
-                        {(mockAppointments[String(day)] ?? []).slice(0, 3).map((_, idx) => (
-                          <span key={idx} className="w-1 h-1 rounded-full bg-primary" />
-                        ))}
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       </span>
                     )}
                   </button>
@@ -133,7 +184,7 @@ const Agenda = () => {
               <h3 className="font-display text-xl mt-0.5">Consultas</h3>
             </div>
 
-            {appointments.length === 0 ? (
+            {dayAppointments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-accent">
                   <CalendarIcon />
@@ -142,20 +193,23 @@ const Agenda = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {appointments.map((a, i) => (
-                  <div key={i} className="flex gap-3 p-3 rounded-xl bg-accent/40">
+                {dayAppointments.map(a => (
+                  <div key={a.id} className="flex gap-3 p-3 rounded-xl bg-accent/40 group">
                     <div className="flex flex-col items-center gap-1 min-w-[36px]">
                       <Clock size={12} className="text-primary" />
-                      <span className="text-xs font-body font-medium text-primary">{a.time}</span>
+                      <span className="text-xs font-body font-medium text-primary">{a.horario.slice(0, 5)}</span>
                     </div>
                     <div className="h-full w-px bg-primary/30" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <User size={11} className="text-muted-foreground flex-shrink-0" />
-                        <p className="text-xs font-body font-medium truncate">{a.patient}</p>
+                        <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground font-body">{a.procedure}</p>
+                      <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
                     </div>
+                    <button onClick={() => handleDelete(a.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1 self-start" title="Excluir">
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -173,14 +227,13 @@ const Agenda = () => {
             <h3 className="font-display text-2xl mb-5">Novo Agendamento</h3>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente</label>
-                <input type="text" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente *</label>
+                <input type="text" value={newPaciente} onChange={e => setNewPaciente(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento</label>
-                <select
-                  value={newProcedimentoId}
-                  onChange={(e) => setNewProcedimentoId(e.target.value)}
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
+                <select value={newProcedimentoId} onChange={e => setNewProcedimentoId(e.target.value)}
                   className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="">Selecione um procedimento</option>
                   {procedimentos.map(p => (
@@ -189,21 +242,24 @@ const Agenda = () => {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data</label>
-                <input type="date" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
+                <input type="date" value={newData} onChange={e => setNewData(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário</label>
-                <input type="time" className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
+                <input type="time" value={newHorario} onChange={e => setNewHorario(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
-                <textarea rows={2} className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+                <textarea rows={2} value={newObs} onChange={e => setNewObs(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowNewModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
-              <button onClick={() => setShowNewModal(false)} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
+              <button onClick={handleSave} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
                 Salvar
               </button>
             </div>

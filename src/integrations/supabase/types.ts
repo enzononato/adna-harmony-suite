@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      agendamentos: {
+        Row: {
+          created_at: string
+          data: string
+          horario: string
+          id: string
+          observacoes: string | null
+          paciente_nome: string
+          procedimento_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          horario: string
+          id?: string
+          observacoes?: string | null
+          paciente_nome: string
+          procedimento_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          horario?: string
+          id?: string
+          observacoes?: string | null
+          paciente_nome?: string
+          procedimento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agendamentos_procedimento_id_fkey"
+            columns: ["procedimento_id"]
+            isOneToOne: false
+            referencedRelation: "procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entradas: {
         Row: {
           created_at: string
