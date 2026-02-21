@@ -50,43 +50,7 @@ const Agenda = () => {
     if (pacRes.data) setPacientes(pacRes.data);
   };
 
-  // Move past appointments to patient treatment history
-  const migratePastAppointments = async () => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const { data: pastAppts } = await supabase
-      .from("agendamentos")
-      .select("*, procedimentos(nome)")
-      .lt("data", todayStr);
-    
-    if (!pastAppts || pastAppts.length === 0) return;
-
-    // Find patient IDs by name
-    const { data: allPacientes } = await supabase.from("pacientes").select("id, nome");
-    if (!allPacientes) return;
-
-    const nameToId = new Map(allPacientes.map(p => [p.nome, p.id]));
-
-    for (const appt of pastAppts) {
-      const pacienteId = nameToId.get(appt.paciente_nome);
-      if (!pacienteId) continue;
-
-      const procedimentoNome = (appt as Agendamento).procedimentos?.nome || "Procedimento";
-      
-      await supabase.from("tratamentos").insert({
-        paciente_id: pacienteId,
-        procedimento: procedimentoNome,
-        data: appt.data,
-        notas: appt.observacoes || null,
-      });
-
-      await supabase.from("agendamentos").delete().eq("id", appt.id);
-    }
-
-    fetchData();
-  };
-
   useEffect(() => { fetchData(); }, []);
-  useEffect(() => { migratePastAppointments(); }, []);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
