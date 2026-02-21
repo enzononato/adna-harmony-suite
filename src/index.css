@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Jost:wght@300;400;500;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Jost:wght@300;400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -12,8 +12,8 @@
 @layer base {
   :root {
     /* ── Core surfaces ── */
-    --background: 36 30% 97%;          /* warm off-white sand */
-    --foreground: 20 25% 15%;          /* deep warm dark */
+    --background: 36 30% 97%; /* warm off-white sand */
+    --foreground: 20 25% 15%; /* deep warm dark */
 
     --card: 36 25% 99%;
     --card-foreground: 20 25% 15%;
@@ -26,7 +26,7 @@
     --primary-foreground: 36 30% 97%;
 
     /* ── Salmon ── */
-    --secondary: 12 72% 72%;
+    --secondary: #ffc0ba;
     --secondary-foreground: 20 25% 15%;
 
     /* ── Sand muted ── */
@@ -80,13 +80,15 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Jost', sans-serif;
+    font-family: "Jost", sans-serif;
     font-weight: 400;
     letter-spacing: 0.01em;
   }
 
-  h1, h2, h3 {
-    font-family: 'Cormorant Garamond', serif;
+  h1,
+  h2,
+  h3 {
+    font-family: "Cormorant Garamond", serif;
     font-weight: 500;
     letter-spacing: 0.02em;
   }
@@ -94,10 +96,10 @@
 
 @layer utilities {
   .font-display {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
   }
   .font-body {
-    font-family: 'Jost', sans-serif;
+    font-family: "Jost", sans-serif;
   }
   .bg-gradient-hero {
     background: var(--gradient-hero);
@@ -115,4 +117,3 @@
     box-shadow: var(--shadow-card);
   }
 }
-
