@@ -55,6 +55,41 @@ export type Database = {
           },
         ]
       }
+      paciente_arquivos: {
+        Row: {
+          created_at: string
+          id: string
+          nome_arquivo: string
+          paciente_id: string
+          storage_path: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          paciente_id: string
+          storage_path: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          paciente_id?: string
+          storage_path?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paciente_arquivos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pacientes: {
         Row: {
           anamnese: string | null

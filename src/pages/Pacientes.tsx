@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save } from "lucide-react";
+import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type Paciente = { id: string; nome: string; telefone: string; data_nascimento: string | null; email: string | null; anamnese: string | null; created_at: string };
 type Tratamento = { id: string; paciente_id: string; procedimento: string; notas: string | null; data: string; created_at: string };
-type Tab = "historico" | "anamnese";
+type Arquivo = { id: string; paciente_id: string; nome_arquivo: string; storage_path: string; tipo: string; created_at: string };
+type Tab = "historico" | "anamnese" | "arquivos";
 
 const fmtDate = (d: string | null) => d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
 const getInitials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -15,9 +16,15 @@ const calcAge = (dob: string | null) => { if (!dob) return null; const d = new D
 const inputCls = "w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
 const labelCls = "text-xs uppercase tracking-widest text-muted-foreground font-body mb-1 block";
 
+const getFileIcon = (tipo: string) => {
+  if (tipo.startsWith("image/")) return <Image size={18} className="text-primary" />;
+  return <File size={18} className="text-primary" />;
+};
+
 const Pacientes = () => {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [tratamentos, setTratamentos] = useState<Tratamento[]>([]);
+  const [arquivos, setArquivos] = useState<Arquivo[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("historico");
@@ -30,6 +37,8 @@ const Pacientes = () => {
   const [newDob, setNewDob] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newAnam, setNewAnam] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const newFileRef = useRef<HTMLInputElement>(null);
 
   // New treatment form
   const [showNewTrat, setShowNewTrat] = useState(false);
@@ -41,14 +50,20 @@ const Pacientes = () => {
   const [editingAnam, setEditingAnam] = useState(false);
   const [anamText, setAnamText] = useState("");
 
+  // Upload in detail view
+  const detailFileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
   const fetchData = async () => {
     setLoading(true);
-    const [pRes, tRes] = await Promise.all([
+    const [pRes, tRes, aRes] = await Promise.all([
       supabase.from("pacientes").select("*").order("nome"),
       supabase.from("tratamentos").select("*").order("data", { ascending: false }),
+      supabase.from("paciente_arquivos").select("*").order("created_at", { ascending: false }),
     ]);
     if (pRes.data) setPacientes(pRes.data as Paciente[]);
     if (tRes.data) setTratamentos(tRes.data as Tratamento[]);
+    if (aRes.data) setArquivos(aRes.data as Arquivo[]);
     setLoading(false);
   };
 
@@ -56,18 +71,56 @@ const Pacientes = () => {
 
   const selected = pacientes.find(p => p.id === selectedId) || null;
   const selectedTrats = tratamentos.filter(t => t.paciente_id === selectedId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  const selectedArquivos = arquivos.filter(a => a.paciente_id === selectedId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   const filtered = pacientes.filter(p => p.nome.toLowerCase().includes(search.toLowerCase()));
+
+  const uploadFilesForPatient = async (pacienteId: string, files: File[]) => {
+    for (const file of files) {
+      const ext = file.name.split(".").pop();
+      const path = `${pacienteId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("paciente-arquivos").upload(path, file);
+      if (uploadErr) { toast.error(`Erro ao enviar ${file.name}`); continue; }
+      await supabase.from("paciente_arquivos").insert({
+        paciente_id: pacienteId,
+        nome_arquivo: file.name,
+        storage_path: path,
+        tipo: file.type || "application/octet-stream",
+      });
+    }
+  };
 
   const handleNewPatient = async () => {
     if (!newNome.trim()) { toast.error("Informe o nome."); return; }
-    const { error } = await supabase.from("pacientes").insert({
+    const { data, error } = await supabase.from("pacientes").insert({
       nome: newNome.trim(), telefone: newTel.trim(),
       data_nascimento: newDob || null, email: newEmail.trim() || null, anamnese: newAnam.trim() || null,
-    });
-    if (error) { toast.error("Erro ao salvar."); return; }
+    }).select("id").single();
+    if (error || !data) { toast.error("Erro ao salvar."); return; }
+    if (newFiles.length > 0) await uploadFilesForPatient(data.id, newFiles);
     toast.success("Paciente cadastrada!");
-    setShowNew(false); setNewNome(""); setNewTel(""); setNewDob(""); setNewEmail(""); setNewAnam("");
+    setShowNew(false); setNewNome(""); setNewTel(""); setNewDob(""); setNewEmail(""); setNewAnam(""); setNewFiles([]);
     fetchData();
+  };
+
+  const handleUploadInDetail = async (files: FileList | null) => {
+    if (!files || !selectedId) return;
+    setUploading(true);
+    await uploadFilesForPatient(selectedId, Array.from(files));
+    toast.success("Arquivo(s) enviado(s)!");
+    setUploading(false);
+    fetchData();
+  };
+
+  const handleDeleteArquivo = async (arq: Arquivo) => {
+    await supabase.storage.from("paciente-arquivos").remove([arq.storage_path]);
+    await supabase.from("paciente_arquivos").delete().eq("id", arq.id);
+    toast.success("Arquivo excluído.");
+    fetchData();
+  };
+
+  const getPublicUrl = (path: string) => {
+    const { data } = supabase.storage.from("paciente-arquivos").getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handleDeletePatient = async (id: string) => {
@@ -121,7 +174,7 @@ const Pacientes = () => {
             <div className="bg-card rounded-2xl border border-border shadow-card p-6 mb-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-display font-medium" style={{ background: "hsl(var(--gold-light))", color: "hsl(var(--primary))" }}>
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-display font-medium bg-accent text-primary">
                     {getInitials(selected.nome)}
                   </div>
                   <div>
@@ -148,11 +201,12 @@ const Pacientes = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-5 bg-muted p-1 rounded-xl w-fit">
-              {([["historico", "Histórico de Tratamentos", FileText], ["anamnese", "Ficha de Anamnese", ClipboardList]] as [Tab, string, typeof FileText][]).map(([t, label, Icon]) => (
+            <div className="flex gap-1 mb-5 bg-muted p-1 rounded-xl w-fit flex-wrap">
+              {([["historico", "Histórico", FileText], ["anamnese", "Anamnese", ClipboardList], ["arquivos", "Arquivos", File]] as [Tab, string, typeof FileText][]).map(([t, label, Icon]) => (
                 <button key={t} onClick={() => setTab(t)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-body transition-all"
                   style={tab === t ? { background: "hsl(var(--card))", color: "hsl(var(--primary))", fontWeight: 600, boxShadow: "var(--shadow-soft)" } : { color: "hsl(var(--muted-foreground))" }}>
                   <Icon size={14} />{label}
+                  {t === "arquivos" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{selectedArquivos.length}</span>}
                 </button>
               ))}
             </div>
@@ -167,7 +221,7 @@ const Pacientes = () => {
                         <p className="text-xs text-muted-foreground font-body mt-0.5 flex items-center gap-1"><Calendar size={11} />{fmtDate(t.data)}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-body px-2.5 py-1 rounded-full" style={{ background: "hsl(var(--gold-light))", color: "hsl(var(--primary))" }}>
+                        <span className="text-xs font-body px-2.5 py-1 rounded-full bg-accent text-primary">
                           Relatório #{selectedTrats.length - i}
                         </span>
                         <button onClick={() => handleDeleteTreatment(t.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1" title="Excluir">
@@ -188,11 +242,11 @@ const Pacientes = () => {
                   <Plus size={15} /> Adicionar relatório
                 </button>
               </div>
-            ) : (
+            ) : tab === "anamnese" ? (
               <div className="bg-card rounded-2xl border border-border shadow-card p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <ClipboardList size={16} style={{ color: "hsl(var(--primary))" }} />
+                    <ClipboardList size={16} className="text-primary" />
                     <h3 className="font-display text-xl">Ficha de Anamnese</h3>
                   </div>
                   {!editingAnam && (
@@ -218,6 +272,56 @@ const Pacientes = () => {
                     <p className="text-sm font-body leading-relaxed text-foreground">
                       {selected.anamnese || "Nenhuma informação registrada. Clique em 'Editar' para preencher."}
                     </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Arquivos tab */
+              <div className="flex flex-col gap-4">
+                <input ref={detailFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={e => handleUploadInDetail(e.target.files)} />
+                <button
+                  onClick={() => detailFileRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center justify-center gap-3 p-6 rounded-2xl border-2 border-dashed border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 text-primary transition-all font-body text-sm cursor-pointer group">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium">{uploading ? "Enviando..." : "Enviar arquivo"}</p>
+                    <p className="text-xs text-muted-foreground">PDF, JPG ou PNG</p>
+                  </div>
+                </button>
+
+                {selectedArquivos.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground font-body py-8">Nenhum arquivo enviado ainda.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedArquivos.map(arq => (
+                      <div key={arq.id} className="bg-card rounded-2xl border border-border shadow-card p-4 flex items-center gap-3 group">
+                        {arq.tipo.startsWith("image/") ? (
+                          <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-muted">
+                            <img src={getPublicUrl(arq.storage_path)} alt={arq.nome_arquivo} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-accent">
+                            {getFileIcon(arq.tipo)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-body font-medium truncate">{arq.nome_arquivo}</p>
+                          <p className="text-[11px] text-muted-foreground font-body">{new Date(arq.created_at).toLocaleDateString("pt-BR")}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <a href={getPublicUrl(arq.storage_path)} target="_blank" rel="noopener noreferrer"
+                            className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-accent transition-all" title="Abrir">
+                            <Download size={14} />
+                          </a>
+                          <button onClick={() => handleDeleteArquivo(arq)} className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100" title="Excluir">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -251,12 +355,13 @@ const Pacientes = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filtered.map(p => {
                   const pts = tratamentos.filter(t => t.paciente_id === p.id);
+                  const fileCount = arquivos.filter(a => a.paciente_id === p.id).length;
                   const lastVisit = pts.length > 0 ? fmtDate(pts[0].data) : "—";
                   return (
                     <button key={p.id} onClick={() => { setSelectedId(p.id); setTab("historico"); setEditingAnam(false); }}
                       className="bg-card rounded-2xl border border-border shadow-card p-5 text-left hover:border-primary/40 hover:shadow-gold transition-all group">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-display font-medium flex-shrink-0" style={{ background: "hsl(var(--gold-light))", color: "hsl(var(--primary))" }}>
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-display font-medium flex-shrink-0 bg-accent text-primary">
                           {getInitials(p.nome)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -273,10 +378,14 @@ const Pacientes = () => {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] text-muted-foreground font-body">Tratamentos</span>
-                          <span className="text-[11px] font-body px-2 py-0.5 rounded-full" style={{ background: "hsl(var(--gold-light))", color: "hsl(var(--primary))" }}>
-                            {pts.length}
-                          </span>
+                          <span className="text-[11px] font-body px-2 py-0.5 rounded-full bg-accent text-primary">{pts.length}</span>
                         </div>
+                        {fileCount > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground font-body">Arquivos</span>
+                            <span className="text-[11px] font-body px-2 py-0.5 rounded-full bg-accent text-primary">{fileCount}</span>
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -291,7 +400,7 @@ const Pacientes = () => {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setShowNew(false)} />
-          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-md p-6">
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <button onClick={() => setShowNew(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X size={16} /></button>
             <div className="h-0.5 w-full rounded-full mb-6" style={{ background: "var(--gradient-gold)" }} />
             <h3 className="font-display text-2xl mb-5">Nova Paciente</h3>
@@ -301,6 +410,34 @@ const Pacientes = () => {
               <div><label className={labelCls}>Data de nascimento</label><input type="date" value={newDob} onChange={e => setNewDob(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>E-mail</label><input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>Anamnese</label><textarea value={newAnam} onChange={e => setNewAnam(e.target.value)} rows={3} className={inputCls + " resize-none"} placeholder="Alergias, medicamentos, comorbidades..." /></div>
+
+              {/* File upload */}
+              <div>
+                <label className={labelCls}>Arquivos</label>
+                <input ref={newFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={e => {
+                  if (e.target.files) setNewFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                }} />
+                <button
+                  type="button"
+                  onClick={() => newFileRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-dashed border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 text-primary transition-all cursor-pointer group">
+                  <Upload size={18} />
+                  <span className="text-sm font-body font-medium">Anexar PDF, JPG ou PNG</span>
+                </button>
+                {newFiles.length > 0 && (
+                  <div className="flex flex-col gap-2 mt-2">
+                    {newFiles.map((f, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-sm font-body">
+                        {f.type.startsWith("image/") ? <Image size={14} className="text-primary flex-shrink-0" /> : <File size={14} className="text-primary flex-shrink-0" />}
+                        <span className="truncate flex-1">{f.name}</span>
+                        <button onClick={() => setNewFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive flex-shrink-0">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowNew(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
