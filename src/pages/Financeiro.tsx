@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 // Types
 type Procedimento = { id: string; nome: string };
+type Paciente = { id: string; nome: string };
 type Entrada = { id: string; paciente_nome: string; procedimento_id: string; valor: number; forma_pagamento: string; observacoes: string | null; data: string; created_at: string };
 type Saida = { id: string; descricao: string; categoria: string; valor: number; observacoes: string | null; data: string; created_at: string };
 
@@ -35,6 +36,7 @@ const StatCard = ({ icon: Icon, label, value, sub, accent }: { icon: typeof Doll
 
 const Financeiro = () => {
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
   const [saidas, setSaidas] = useState<Saida[]>([]);
   const [showEntradaModal, setShowEntradaModal] = useState(false);
@@ -58,12 +60,14 @@ const Financeiro = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [procRes, entRes, saiRes] = await Promise.all([
+    const [procRes, pacRes, entRes, saiRes] = await Promise.all([
       supabase.from("procedimentos").select("*").order("nome"),
+      supabase.from("pacientes").select("id, nome").order("nome"),
       supabase.from("entradas").select("*").order("data", { ascending: false }),
       supabase.from("saidas").select("*").order("data", { ascending: false }),
     ]);
     if (procRes.data) setProcedimentos(procRes.data);
+    if (pacRes.data) setPacientes(pacRes.data);
     if (entRes.data) setEntradas(entRes.data as Entrada[]);
     if (saiRes.data) setSaidas(saiRes.data as Saida[]);
     setLoading(false);
@@ -268,7 +272,10 @@ const Financeiro = () => {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Paciente *</label>
-                <input value={ePaciente} onChange={e => setEPaciente(e.target.value)} className={inputCls} placeholder="Nome do paciente" />
+                <select value={ePaciente} onChange={e => setEPaciente(e.target.value)} className={inputCls}>
+                  <option value="">Selecione...</option>
+                  {pacientes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                </select>
               </div>
               <div>
                 <label className={labelCls}>Procedimento *</label>
