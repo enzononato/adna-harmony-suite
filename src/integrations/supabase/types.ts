@@ -55,6 +55,39 @@ export type Database = {
           },
         ]
       }
+      pacientes: {
+        Row: {
+          anamnese: string | null
+          created_at: string
+          data_nascimento: string | null
+          email: string | null
+          id: string
+          nome: string
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          anamnese?: string | null
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          telefone?: string
+          updated_at?: string
+        }
+        Update: {
+          anamnese?: string | null
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       procedimentos: {
         Row: {
           created_at: string
@@ -102,6 +135,41 @@ export type Database = {
           valor?: number
         }
         Relationships: []
+      }
+      tratamentos: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          notas: string | null
+          paciente_id: string
+          procedimento: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          notas?: string | null
+          paciente_id: string
+          procedimento: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          notas?: string | null
+          paciente_id?: string
+          procedimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tratamentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
