@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, CheckCircle, Clock, XCircle, Plus, X, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, CheckCircle, Clock, XCircle, Plus, X, ArrowUpCircle, ArrowDownCircle, Tag, Pencil, Save } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Types
-type Procedimento = { id: string; nome: string };
+type Procedimento = { id: string; nome: string; preco: number | null };
 type Paciente = { id: string; nome: string };
 type Entrada = { id: string; paciente_nome: string; procedimento_id: string; valor: number; forma_pagamento: string; observacoes: string | null; data: string; created_at: string };
 type Saida = { id: string; descricao: string; categoria: string; valor: number; observacoes: string | null; data: string; created_at: string };
@@ -35,6 +35,7 @@ const StatCard = ({ icon: Icon, label, value, sub, accent }: { icon: typeof Doll
 );
 
 const Financeiro = () => {
+  const [activeTab, setActiveTab] = useState<"financeiro" | "precos">("financeiro");
   const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
@@ -42,6 +43,8 @@ const Financeiro = () => {
   const [showEntradaModal, setShowEntradaModal] = useState(false);
   const [showSaidaModal, setShowSaidaModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingPreco, setEditingPreco] = useState<string | null>(null);
+  const [precoValue, setPrecoValue] = useState("");
 
   // Entrada form
   const [ePaciente, setEPaciente] = useState("");
@@ -115,6 +118,16 @@ const Financeiro = () => {
     fetchData();
   };
 
+  const handleSavePreco = async (procId: string) => {
+    const valor = precoValue ? parseFloat(precoValue) : null;
+    const { error } = await supabase.from("procedimentos").update({ preco: valor } as any).eq("id", procId);
+    if (error) { toast.error("Erro ao salvar preço."); return; }
+    toast.success("Preço atualizado!");
+    setEditingPreco(null);
+    setPrecoValue("");
+    fetchData();
+  };
+
   // Computations
   const totalEntradas = entradas.reduce((s, e) => s + Number(e.valor), 0);
   const totalSaidas = saidas.reduce((s, e) => s + Number(e.valor), 0);
@@ -149,22 +162,41 @@ const Financeiro = () => {
     <AppLayout>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-8 flex items-end justify-between">
+        <div className="mb-6 flex items-end justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-body mb-1">Gerenciamento</p>
             <h1 className="text-3xl font-display">Financeiro</h1>
             <p className="text-sm text-muted-foreground font-body mt-1">Controle detalhado de entradas e saídas</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowEntradaModal(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-body font-medium hover:opacity-90 transition-opacity">
-              <ArrowUpCircle size={16} /> Nova Entrada
-            </button>
-            <button onClick={() => setShowSaidaModal(true)} className="flex items-center gap-2 bg-muted text-foreground px-4 py-2.5 rounded-xl text-sm font-body font-medium hover:bg-muted/70 transition-colors border border-border">
-              <ArrowDownCircle size={16} /> Nova Saída
-            </button>
-          </div>
+          {activeTab === "financeiro" && (
+            <div className="flex gap-2">
+              <button onClick={() => setShowEntradaModal(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-body font-medium hover:opacity-90 transition-opacity">
+                <ArrowUpCircle size={16} /> Nova Entrada
+              </button>
+              <button onClick={() => setShowSaidaModal(true)} className="flex items-center gap-2 bg-muted text-foreground px-4 py-2.5 rounded-xl text-sm font-body font-medium hover:bg-muted/70 transition-colors border border-border">
+                <ArrowDownCircle size={16} /> Nova Saída
+              </button>
+            </div>
+          )}
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 bg-muted rounded-xl p-1 w-fit">
+          <button
+            onClick={() => setActiveTab("financeiro")}
+            className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-all ${activeTab === "financeiro" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <span className="flex items-center gap-2"><DollarSign size={15} /> Movimentações</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("precos")}
+            className={`px-4 py-2 rounded-lg text-sm font-body font-medium transition-all ${activeTab === "precos" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <span className="flex items-center gap-2"><Tag size={15} /> Preços</span>
+          </button>
+        </div>
+
+        {activeTab === "financeiro" && (<>
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard icon={TrendingUp} label="Entradas" value={fmt(totalEntradas)} sub={`${entradas.length} procedimentos`} accent="hsl(43,72%,47%)" />
@@ -256,6 +288,69 @@ const Financeiro = () => {
             </div>
           )}
         </div>
+        </>)}
+
+        {/* Preços Tab */}
+        {activeTab === "precos" && (
+          <div className="bg-card rounded-2xl border border-border shadow-card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h3 className="font-display text-lg">Preços de Referência</h3>
+              <p className="text-xs text-muted-foreground font-body mt-0.5">Valores para consulta rápida — não são aplicados automaticamente</p>
+            </div>
+            {loading ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Carregando...</div>
+            ) : procedimentos.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Nenhum procedimento cadastrado.</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {procedimentos.map((proc) => (
+                  <div key={proc.id} className="flex items-center justify-between px-5 py-4 hover:bg-muted/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Tag size={15} className="text-primary" />
+                      </div>
+                      <span className="text-sm font-body font-medium">{proc.nome}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingPreco === proc.id ? (
+                        <>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={precoValue}
+                            onChange={e => setPrecoValue(e.target.value)}
+                            className="w-28 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            placeholder="0,00"
+                            autoFocus
+                            onKeyDown={e => e.key === "Enter" && handleSavePreco(proc.id)}
+                          />
+                          <button onClick={() => handleSavePreco(proc.id)} className="text-primary hover:text-primary/80 p-1" title="Salvar">
+                            <Save size={16} />
+                          </button>
+                          <button onClick={() => { setEditingPreco(null); setPrecoValue(""); }} className="text-muted-foreground hover:text-foreground p-1" title="Cancelar">
+                            <X size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm font-body font-medium text-muted-foreground">
+                            {proc.preco != null ? fmt(Number(proc.preco)) : "Sem preço"}
+                          </span>
+                          <button
+                            onClick={() => { setEditingPreco(proc.id); setPrecoValue(proc.preco != null ? String(proc.preco) : ""); }}
+                            className="text-muted-foreground hover:text-foreground p-1" title="Editar preço"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal: Nova Entrada */}
