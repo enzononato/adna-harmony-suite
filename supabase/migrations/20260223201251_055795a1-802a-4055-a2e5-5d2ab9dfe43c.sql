@@ -1,0 +1,1 @@
+ALTER TABLE public.procedimentos ADD COLUMN preco numeric DEFAULT NULL;
