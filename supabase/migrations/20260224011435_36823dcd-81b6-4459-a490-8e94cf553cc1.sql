@@ -1,0 +1,1 @@
+CREATE POLICY "Anyone can update procedimentos" ON public.procedimentos FOR UPDATE USING (true) WITH CHECK (true);
