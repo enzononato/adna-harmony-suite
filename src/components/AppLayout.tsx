@@ -16,7 +16,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen flex" style={{ background: "hsl(var(--background))" }}>
       {/* Sidebar desktop */}
-      <aside className="hidden md:flex flex-col w-60 min-h-screen flex-shrink-0" style={{ background: "var(--gradient-sidebar)" }}>
+      <aside className="hidden md:flex flex-col w-60 h-screen sticky top-0 flex-shrink-0" style={{ background: "var(--gradient-sidebar)" }}>
         <SidebarContent navigate={navigate} />
       </aside>
 
