@@ -13,8 +13,6 @@ const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     if (session) navigate("/agenda", { replace: true });
@@ -24,49 +22,28 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setSuccess("");
 
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (error) {
-        setError(error.message);
-      } else {
-        setSuccess("Conta criada! Verifique seu e-mail para confirmar.");
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password,
-      });
-      if (error) {
-        setError("E-mail ou senha incorretos.");
-      }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: form.email,
+      password: form.password,
+    });
+    if (error) {
+      setError("E-mail ou senha incorretos.");
     }
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(36 30% 95%), hsl(43 40% 92%))" }}>
-      {/* Watermark background logo */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-[0.04]">
         <img src={logoPlaceholder} alt="" className="w-[70vw] max-w-2xl" />
       </div>
-
-      {/* Decorative circles */}
       <div className="absolute top-[-80px] right-[-80px] w-72 h-72 rounded-full" style={{ background: "radial-gradient(circle, hsl(43 72% 47% / 0.12), transparent 70%)" }} />
       <div className="absolute bottom-[-60px] left-[-60px] w-56 h-56 rounded-full" style={{ background: "radial-gradient(circle, hsl(12 72% 72% / 0.12), transparent 70%)" }} />
 
-      {/* Card */}
       <div className="relative z-10 w-full max-w-sm mx-4 bg-card rounded-2xl shadow-card border border-border/60 overflow-hidden">
-        {/* Gold top bar */}
         <div className="h-1 w-full" style={{ background: "var(--gradient-gold)" }} />
-
         <div className="px-8 pt-10 pb-10 flex flex-col items-center gap-6">
-          {/* Logo */}
           <div className="flex flex-col items-center gap-3">
             <img src={logoPlaceholder} alt="Instituto Adna Thuane" className="w-24 h-24 object-contain" />
             <div className="text-center">
@@ -78,10 +55,8 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Divider */}
           <div className="w-12 h-px" style={{ background: "hsl(var(--gold))" }} />
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">E-mail</label>
@@ -109,7 +84,6 @@ const Login = () => {
                   className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-muted border border-border text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                   placeholder="••••••••"
                   required
-                  minLength={6}
                 />
                 <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -118,7 +92,6 @@ const Login = () => {
             </div>
 
             {error && <p className="text-xs text-destructive text-center font-body">{error}</p>}
-            {success && <p className="text-xs text-green-600 text-center font-body">{success}</p>}
 
             <button
               type="submit"
@@ -126,16 +99,9 @@ const Login = () => {
               className="mt-1 w-full py-3 rounded-lg text-sm font-body font-medium tracking-widest uppercase transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
               style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))", boxShadow: "var(--shadow-gold)" }}
             >
-              {loading ? "Aguarde..." : isSignUp ? "Criar conta" : "Entrar"}
+              {loading ? "Entrando..." : "Entrar"}
             </button>
           </form>
-
-          <button
-            onClick={() => { setIsSignUp(s => !s); setError(""); setSuccess(""); }}
-            className="text-xs text-muted-foreground font-body hover:text-foreground transition-colors"
-          >
-            {isSignUp ? "Já tem conta? Entrar" : "Não tem conta? Cadastre-se"}
-          </button>
 
           <p className="text-[10px] text-muted-foreground font-body text-center tracking-wide">
             Sistema exclusivo · Instituto Adna Thuane

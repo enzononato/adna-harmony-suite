@@ -1,25 +1,32 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, Users, BarChart3, LogOut, Menu, X } from "lucide-react";
+import { CalendarDays, Users, BarChart3, LogOut, Menu, X, UserCog } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import logoPlaceholder from "@/assets/logo-placeholder.png";
 
-const navItems = [
-  { to: "/agenda", icon: CalendarDays, label: "Agenda" },
-  { to: "/pacientes", icon: Users, label: "Pacientes" },
-  { to: "/financeiro", icon: BarChart3, label: "Financeiro" },
-];
+const getNavItems = (isAdmin: boolean) => {
+  const items = [
+    { to: "/agenda", icon: CalendarDays, label: "Agenda" },
+    { to: "/pacientes", icon: Users, label: "Pacientes" },
+  ];
+  if (isAdmin) {
+    items.push({ to: "/financeiro", icon: BarChart3, label: "Financeiro" });
+    items.push({ to: "/usuarios", icon: UserCog, label: "Usuários" });
+  }
+  return items;
+};
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
+  const navItems = getNavItems(isAdmin);
 
   return (
     <div className="min-h-screen flex" style={{ background: "hsl(var(--background))" }}>
       {/* Sidebar desktop */}
       <aside className="hidden md:flex flex-col w-60 h-screen sticky top-0 flex-shrink-0" style={{ background: "var(--gradient-sidebar)" }}>
-        <SidebarContent onSignOut={async () => { await signOut(); navigate("/"); }} />
+        <SidebarContent navItems={navItems} onSignOut={async () => { await signOut(); navigate("/"); }} />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -30,7 +37,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <button onClick={() => setOpen(false)} className="absolute top-4 right-4 text-sidebar-foreground/60 hover:text-sidebar-foreground">
               <X size={20} />
             </button>
-            <SidebarContent onSignOut={async () => { await signOut(); navigate("/"); }} onNav={() => setOpen(false)} />
+            <SidebarContent navItems={navItems} onSignOut={async () => { await signOut(); navigate("/"); }} onNav={() => setOpen(false)} />
           </aside>
         </div>
       )}
@@ -56,7 +63,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const SidebarContent = ({ onSignOut, onNav }: { onSignOut: () => void; onNav?: () => void }) => (
+const SidebarContent = ({ navItems, onSignOut, onNav }: { navItems: { to: string; icon: any; label: string }[]; onSignOut: () => void; onNav?: () => void }) => (
   <div className="flex flex-col h-full">
     {/* Brand */}
     <div className="px-6 pt-8 pb-6 flex flex-col items-center gap-2 border-b border-sidebar-border">
