@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { CalendarDays, Users, BarChart3, LogOut, Menu, X, Stethoscope } from "lucide-react";
+import { CalendarDays, Users, BarChart3, LogOut, Menu, X } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 import logoPlaceholder from "@/assets/logo-placeholder.png";
 
 const navItems = [
@@ -11,13 +12,14 @@ const navItems = [
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex" style={{ background: "hsl(var(--background))" }}>
       {/* Sidebar desktop */}
       <aside className="hidden md:flex flex-col w-60 h-screen sticky top-0 flex-shrink-0" style={{ background: "var(--gradient-sidebar)" }}>
-        <SidebarContent navigate={navigate} />
+        <SidebarContent onSignOut={async () => { await signOut(); navigate("/"); }} />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -28,7 +30,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <button onClick={() => setOpen(false)} className="absolute top-4 right-4 text-sidebar-foreground/60 hover:text-sidebar-foreground">
               <X size={20} />
             </button>
-            <SidebarContent navigate={navigate} onNav={() => setOpen(false)} />
+            <SidebarContent onSignOut={async () => { await signOut(); navigate("/"); }} onNav={() => setOpen(false)} />
           </aside>
         </div>
       )}
@@ -54,7 +56,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const SidebarContent = ({ navigate, onNav }: { navigate: (to: string) => void; onNav?: () => void }) => (
+const SidebarContent = ({ onSignOut, onNav }: { onSignOut: () => void; onNav?: () => void }) => (
   <div className="flex flex-col h-full">
     {/* Brand */}
     <div className="px-6 pt-8 pb-6 flex flex-col items-center gap-2 border-b border-sidebar-border">
@@ -94,7 +96,7 @@ const SidebarContent = ({ navigate, onNav }: { navigate: (to: string) => void; o
     <div className="px-3 pb-6">
       <div className="h-px bg-sidebar-border mb-4" />
       <button
-        onClick={() => navigate("/")}
+        onClick={onSignOut}
         className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-body text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all"
       >
         <LogOut size={15} />
