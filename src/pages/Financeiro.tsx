@@ -374,7 +374,12 @@ const Financeiro = () => {
               </div>
               <div>
                 <label className={labelCls}>Procedimento *</label>
-                <select value={eProcedimento} onChange={e => setEProcedimento(e.target.value)} className={inputCls}>
+                <select value={eProcedimento} onChange={e => {
+                  const procId = e.target.value;
+                  setEProcedimento(procId);
+                  const proc = procedimentos.find(p => p.id === procId);
+                  if (proc?.preco != null) setEValor(String(proc.preco));
+                }} className={inputCls}>
                   <option value="">Selecione...</option>
                   {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
