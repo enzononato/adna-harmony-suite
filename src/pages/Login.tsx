@@ -16,10 +16,10 @@ const Login = () => {
     setError("");
     // Simulate auth
     setTimeout(() => {
-      if (form.user === "admin" && form.password === "admin") {
+      if (form.user === "admin" && form.password === "adna0421") {
         navigate("/agenda");
       } else {
-        setError("Usuário ou senha incorretos. Tente: admin / admin");
+        setError("Usuário ou senha incorretos.");
         setLoading(false);
       }
     }, 800);
