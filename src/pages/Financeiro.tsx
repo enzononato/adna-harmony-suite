@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Types
-type Procedimento = { id: string; nome: string; preco: number | null; duracao_minutos: number | null };
+type Procedimento = { id: string; nome: string; preco: number | null; duracao_minutos: number | null; dias_retorno: number | null };
 type Paciente = { id: string; nome: string };
 type Entrada = { id: string; paciente_nome: string; procedimento_id: string; valor: number; forma_pagamento: string; observacoes: string | null; data: string; created_at: string };
 type Saida = { id: string; descricao: string; categoria: string; valor: number; observacoes: string | null; data: string; created_at: string };
@@ -47,6 +47,8 @@ const Financeiro = () => {
   const [precoValue, setPrecoValue] = useState("");
   const [editingDuracao, setEditingDuracao] = useState<string | null>(null);
   const [duracaoValue, setDuracaoValue] = useState("");
+  const [editingRetorno, setEditingRetorno] = useState<string | null>(null);
+  const [retornoValue, setRetornoValue] = useState("");
 
   // Entrada form
   const [ePaciente, setEPaciente] = useState("");
@@ -141,6 +143,16 @@ const Financeiro = () => {
     toast.success("Duração atualizada!");
     setEditingDuracao(null);
     setDuracaoValue("");
+    fetchData();
+  };
+
+  const handleSaveRetorno = async (procId: string) => {
+    const valor = retornoValue ? parseInt(retornoValue) : null;
+    const { error } = await supabase.from("procedimentos").update({ dias_retorno: valor } as any).eq("id", procId);
+    if (error) { toast.error("Erro ao salvar retorno."); return; }
+    toast.success("Retorno atualizado!");
+    setEditingRetorno(null);
+    setRetornoValue("");
     fetchData();
   };
 
@@ -360,6 +372,24 @@ const Financeiro = () => {
                           <button onClick={() => { setEditingDuracao(proc.id); setDuracaoValue((proc as any).duracao_minutos != null ? String((proc as any).duracao_minutos) : ""); }}
                             className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" title="Editar duração">
                             <Clock size={12} /> {(proc as any).duracao_minutos != null ? `${(proc as any).duracao_minutos} min` : "Sem duração"} <Pencil size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="w-px h-5 bg-border" />
+                      {/* Retorno */}
+                      <div className="flex items-center gap-1">
+                        {editingRetorno === proc.id ? (
+                          <>
+                            <input type="number" value={retornoValue} onChange={e => setRetornoValue(e.target.value)}
+                              className="w-20 rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              placeholder="dias" autoFocus onKeyDown={e => e.key === "Enter" && handleSaveRetorno(proc.id)} />
+                            <button onClick={() => handleSaveRetorno(proc.id)} className="text-primary hover:text-primary/80 p-1"><Save size={14} /></button>
+                            <button onClick={() => { setEditingRetorno(null); setRetornoValue(""); }} className="text-muted-foreground hover:text-foreground p-1"><X size={14} /></button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingRetorno(proc.id); setRetornoValue(proc.dias_retorno != null ? String(proc.dias_retorno) : ""); }}
+                            className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" title="Editar retorno">
+                            🔄 {proc.dias_retorno != null ? `${proc.dias_retorno} dias` : "Sem retorno"} <Pencil size={12} />
                           </button>
                         )}
                       </div>

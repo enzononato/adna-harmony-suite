@@ -1,0 +1,1 @@
+ALTER TABLE procedimentos ADD COLUMN dias_retorno integer;
