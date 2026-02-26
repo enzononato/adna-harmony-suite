@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Types
-type Procedimento = { id: string; nome: string; preco: number | null };
+type Procedimento = { id: string; nome: string; preco: number | null; duracao_minutos: number | null };
 type Paciente = { id: string; nome: string };
 type Entrada = { id: string; paciente_nome: string; procedimento_id: string; valor: number; forma_pagamento: string; observacoes: string | null; data: string; created_at: string };
 type Saida = { id: string; descricao: string; categoria: string; valor: number; observacoes: string | null; data: string; created_at: string };
@@ -45,6 +45,8 @@ const Financeiro = () => {
   const [loading, setLoading] = useState(true);
   const [editingPreco, setEditingPreco] = useState<string | null>(null);
   const [precoValue, setPrecoValue] = useState("");
+  const [editingDuracao, setEditingDuracao] = useState<string | null>(null);
+  const [duracaoValue, setDuracaoValue] = useState("");
 
   // Entrada form
   const [ePaciente, setEPaciente] = useState("");
@@ -125,6 +127,16 @@ const Financeiro = () => {
     toast.success("Preço atualizado!");
     setEditingPreco(null);
     setPrecoValue("");
+    fetchData();
+  };
+
+  const handleSaveDuracao = async (procId: string) => {
+    const valor = duracaoValue ? parseInt(duracaoValue) : null;
+    const { error } = await supabase.from("procedimentos").update({ duracao_minutos: valor } as any).eq("id", procId);
+    if (error) { toast.error("Erro ao salvar duração."); return; }
+    toast.success("Duração atualizada!");
+    setEditingDuracao(null);
+    setDuracaoValue("");
     fetchData();
   };
 
@@ -311,39 +323,42 @@ const Financeiro = () => {
                       </div>
                       <span className="text-sm font-body font-medium">{proc.nome}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {editingPreco === proc.id ? (
-                        <>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={precoValue}
-                            onChange={e => setPrecoValue(e.target.value)}
-                            className="w-28 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
-                            placeholder="0,00"
-                            autoFocus
-                            onKeyDown={e => e.key === "Enter" && handleSavePreco(proc.id)}
-                          />
-                          <button onClick={() => handleSavePreco(proc.id)} className="text-primary hover:text-primary/80 p-1" title="Salvar">
-                            <Save size={16} />
+                    <div className="flex items-center gap-3">
+                      {/* Preço */}
+                      <div className="flex items-center gap-1">
+                        {editingPreco === proc.id ? (
+                          <>
+                            <input type="number" step="0.01" value={precoValue} onChange={e => setPrecoValue(e.target.value)}
+                              className="w-24 rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              placeholder="R$" autoFocus onKeyDown={e => e.key === "Enter" && handleSavePreco(proc.id)} />
+                            <button onClick={() => handleSavePreco(proc.id)} className="text-primary hover:text-primary/80 p-1"><Save size={14} /></button>
+                            <button onClick={() => { setEditingPreco(null); setPrecoValue(""); }} className="text-muted-foreground hover:text-foreground p-1"><X size={14} /></button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingPreco(proc.id); setPrecoValue(proc.preco != null ? String(proc.preco) : ""); }}
+                            className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" title="Editar preço">
+                            {proc.preco != null ? fmt(Number(proc.preco)) : "Sem preço"} <Pencil size={12} />
                           </button>
-                          <button onClick={() => { setEditingPreco(null); setPrecoValue(""); }} className="text-muted-foreground hover:text-foreground p-1" title="Cancelar">
-                            <X size={16} />
+                        )}
+                      </div>
+                      <div className="w-px h-5 bg-border" />
+                      {/* Duração */}
+                      <div className="flex items-center gap-1">
+                        {editingDuracao === proc.id ? (
+                          <>
+                            <input type="number" value={duracaoValue} onChange={e => setDuracaoValue(e.target.value)}
+                              className="w-20 rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              placeholder="min" autoFocus onKeyDown={e => e.key === "Enter" && handleSaveDuracao(proc.id)} />
+                            <button onClick={() => handleSaveDuracao(proc.id)} className="text-primary hover:text-primary/80 p-1"><Save size={14} /></button>
+                            <button onClick={() => { setEditingDuracao(null); setDuracaoValue(""); }} className="text-muted-foreground hover:text-foreground p-1"><X size={14} /></button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingDuracao(proc.id); setDuracaoValue((proc as any).duracao_minutos != null ? String((proc as any).duracao_minutos) : ""); }}
+                            className="text-sm font-body text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" title="Editar duração">
+                            <Clock size={12} /> {(proc as any).duracao_minutos != null ? `${(proc as any).duracao_minutos} min` : "Sem duração"} <Pencil size={12} />
                           </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-sm font-body font-medium text-muted-foreground">
-                            {proc.preco != null ? fmt(Number(proc.preco)) : "Sem preço"}
-                          </span>
-                          <button
-                            onClick={() => { setEditingPreco(proc.id); setPrecoValue(proc.preco != null ? String(proc.preco) : ""); }}
-                            className="text-muted-foreground hover:text-foreground p-1" title="Editar preço"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        </>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

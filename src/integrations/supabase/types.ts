@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           data: string
+          duracao_minutos: number | null
           horario: string
           id: string
           observacoes: string | null
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           created_at?: string
           data?: string
+          duracao_minutos?: number | null
           horario: string
           id?: string
           observacoes?: string | null
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           created_at?: string
           data?: string
+          duracao_minutos?: number | null
           horario?: string
           id?: string
           observacoes?: string | null
@@ -164,18 +167,21 @@ export type Database = {
       procedimentos: {
         Row: {
           created_at: string
+          duracao_minutos: number | null
           id: string
           nome: string
           preco: number | null
         }
         Insert: {
           created_at?: string
+          duracao_minutos?: number | null
           id?: string
           nome: string
           preco?: number | null
         }
         Update: {
           created_at?: string
+          duracao_minutos?: number | null
           id?: string
           nome?: string
           preco?: number | null
