@@ -166,12 +166,9 @@ const Agenda = () => {
   };
 
   const handleSave = async () => {
-    if (!newPaciente) { toast.error("Selecione um paciente cadastrado."); return; }
+    if (!newPaciente.trim()) { toast.error("Informe o nome do paciente."); return; }
     if (!newProcedimentoId) { toast.error("Selecione um procedimento."); return; }
     if (!newHorario) { toast.error("Informe o horário."); return; }
-    
-    const paciente = pacientes.find(p => p.nome === newPaciente);
-    if (!paciente) { toast.error("Paciente não cadastrado. Cadastre primeiro na aba Pacientes."); return; }
 
     const dur = newDuracao ? parseInt(newDuracao) : null;
     if (checkOverlap(newData, newHorario, dur)) {
@@ -702,27 +699,21 @@ const Agenda = () => {
               <div className="flex flex-col gap-1 relative">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Paciente *</label>
                 <input type="text" value={newPacienteSearch} 
-                  onChange={e => { setNewPacienteSearch(e.target.value); setNewPaciente(""); setShowPacienteDropdown(true); }}
+                  onChange={e => { setNewPacienteSearch(e.target.value); setNewPaciente(e.target.value); setShowPacienteDropdown(true); }}
                   onFocus={() => setShowPacienteDropdown(true)}
-                  placeholder="Buscar paciente cadastrado..."
+                  onBlur={() => setTimeout(() => setShowPacienteDropdown(false), 150)}
+                  placeholder="Digite o nome do paciente..."
                   className={`${inputCls} ${newPaciente ? "bg-accent border-primary/40" : ""}`} />
-                {newPaciente && (
-                  <p className="text-[11px] text-primary font-body mt-0.5">✓ {newPaciente}</p>
-                )}
-                {showPacienteDropdown && !newPaciente && (
+                {showPacienteDropdown && newPacienteSearch && (
                   <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded-xl shadow-card max-h-40 overflow-y-auto">
-                    {pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).length === 0 ? (
-                      <p className="px-3 py-2 text-xs text-muted-foreground font-body">Nenhum paciente encontrado. Cadastre primeiro.</p>
-                    ) : (
-                      pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).map(p => (
-                        <button key={p.id} type="button"
-                          onClick={() => { setNewPaciente(p.nome); setNewPacienteSearch(p.nome); setShowPacienteDropdown(false); }}
-                          className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
-                          <User size={12} className="text-muted-foreground" />
-                          {p.nome}
-                        </button>
-                      ))
-                    )}
+                    {pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).map(p => (
+                      <button key={p.id} type="button"
+                        onClick={() => { setNewPaciente(p.nome); setNewPacienteSearch(p.nome); setShowPacienteDropdown(false); }}
+                        className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
+                        <User size={12} className="text-muted-foreground" />
+                        {p.nome}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
