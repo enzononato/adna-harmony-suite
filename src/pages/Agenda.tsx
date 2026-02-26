@@ -581,50 +581,40 @@ const Agenda = () => {
                   const dividerColor = isRetorno ? "bg-blue-500/30" : isConfirmado ? "bg-green-500/30" : "bg-primary/30";
 
                   return (
-                    <div key={a.id} className={`flex gap-3 p-3 rounded-xl group ${cardClass}`}>
-                      <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                        {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
-                          : isConfirmado ? <Check size={12} className="text-green-600" />
-                          : <Clock size={12} className="text-primary" />}
-                        <span className={`text-xs font-body font-medium ${accentColor}`}>
-                          {a.horario.slice(0, 5)}
-                          {a.duracao_minutos ? (() => {
-                            const [h, m] = a.horario.split(":").map(Number);
-                            const end = new Date(2000, 0, 1, h, m + a.duracao_minutos);
-                            return ` - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
-                          })() : ""}
-                        </span>
-                      </div>
-                      <div className={`h-full w-px ${dividerColor}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <User size={11} className="text-muted-foreground flex-shrink-0" />
-                          <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
+                    <div key={a.id} className={`flex flex-col gap-2 p-3 rounded-xl group ${cardClass}`}>
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center gap-1 min-w-[36px]">
+                          {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
+                            : isConfirmado ? <Check size={12} className="text-green-600" />
+                            : <Clock size={12} className="text-primary" />}
+                          <span className={`text-xs font-body font-medium ${accentColor}`}>
+                            {a.horario.slice(0, 5)}
+                            {a.duracao_minutos ? (() => {
+                              const [h, m] = a.horario.split(":").map(Number);
+                              const end = new Date(2000, 0, 1, h, m + a.duracao_minutos);
+                              return ` - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+                            })() : ""}
+                          </span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
-                        {isRetorno && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
-                            <RotateCcw size={9} /> Retorno automático
-                          </span>
-                        )}
-                        {isConfirmado && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-green-500/20 text-green-700">
-                            <Check size={9} /> Retorno confirmado
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-1 self-start">
-                        {isRetorno && (
-                          <>
-                            <button onClick={() => handleConfirmRetorno(a)} className="text-green-600 hover:text-green-700 hover:bg-green-100 p-1 rounded transition-colors" title="Confirmar retorno">
-                              <Check size={15} strokeWidth={2.5} />
-                            </button>
-                            <button onClick={() => handleRejectRetorno(a.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10 p-1 rounded transition-colors" title="Cancelar retorno">
-                              <X size={15} strokeWidth={2.5} />
-                            </button>
-                          </>
-                        )}
-                        <div className={`flex gap-1 ${isRetorno || isConfirmado ? "" : "opacity-0 group-hover:opacity-100"} transition-all`}>
+                        <div className={`h-auto w-px ${dividerColor}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <User size={11} className="text-muted-foreground flex-shrink-0" />
+                            <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
+                          {isRetorno && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
+                              <RotateCcw size={9} /> Retorno automático
+                            </span>
+                          )}
+                          {isConfirmado && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-green-500/20 text-green-700">
+                              <Check size={9} /> Retorno confirmado
+                            </span>
+                          )}
+                        </div>
+                        <div className={`flex gap-1 self-start ${!isRetorno && !isConfirmado ? "opacity-0 group-hover:opacity-100" : ""} transition-all`}>
                           <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
                             <Pencil size={13} />
                           </button>
@@ -633,6 +623,16 @@ const Agenda = () => {
                           </button>
                         </div>
                       </div>
+                      {isRetorno && (
+                        <div className="flex gap-1.5 ml-[45px]">
+                          <button onClick={() => handleConfirmRetorno(a)} className="flex items-center gap-1 text-xs font-body text-green-600 hover:text-green-700 hover:bg-green-100 px-2 py-1 rounded transition-colors" title="Confirmar retorno">
+                            <Check size={13} strokeWidth={2.5} /> Confirmar
+                          </button>
+                          <button onClick={() => handleRejectRetorno(a.id)} className="flex items-center gap-1 text-xs font-body text-destructive hover:bg-destructive/10 px-2 py-1 rounded transition-colors" title="Cancelar retorno">
+                            <X size={13} strokeWidth={2.5} /> Cancelar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
