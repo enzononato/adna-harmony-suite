@@ -14,7 +14,8 @@ type Agendamento = {
   data: string;
   horario: string;
   observacoes: string | null;
-  procedimentos?: { nome: string } | null;
+  duracao_minutos: number | null;
+  procedimentos?: { nome: string; duracao_minutos?: number | null } | null;
 };
 
 type ViewMode = "mensal" | "semanal" | "diario";
@@ -26,7 +27,7 @@ const Agenda = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string }[]>([]);
+  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
 
@@ -38,6 +39,7 @@ const Agenda = () => {
   const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
   const [newHorario, setNewHorario] = useState("");
   const [newObs, setNewObs] = useState("");
+  const [newDuracao, setNewDuracao] = useState("");
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -48,10 +50,11 @@ const Agenda = () => {
   const [editData, setEditData] = useState("");
   const [editHorario, setEditHorario] = useState("");
   const [editObs, setEditObs] = useState("");
+  const [editDuracao, setEditDuracao] = useState("");
 
   const fetchData = async () => {
     const [pRes, aRes, pacRes] = await Promise.all([
-      supabase.from("procedimentos").select("id, nome").order("nome"),
+      supabase.from("procedimentos").select("id, nome, duracao_minutos").order("nome"),
       supabase.from("agendamentos").select("*, procedimentos(nome)").order("horario"),
       supabase.from("pacientes").select("id, nome").order("nome"),
     ]);
@@ -134,7 +137,8 @@ const Agenda = () => {
       data: newData,
       horario: newHorario,
       observacoes: newObs.trim() || null,
-    });
+      duracao_minutos: newDuracao ? parseInt(newDuracao) : null,
+    } as any);
     if (error) { toast.error("Erro ao salvar agendamento."); return; }
     toast.success("Agendamento salvo!");
     setShowNewModal(false);
@@ -158,6 +162,7 @@ const Agenda = () => {
     setEditData(a.data);
     setEditHorario(a.horario);
     setEditObs(a.observacoes || "");
+    setEditDuracao(a.duracao_minutos != null ? String(a.duracao_minutos) : "");
     setShowEditPacienteDropdown(false);
   };
 
@@ -172,7 +177,8 @@ const Agenda = () => {
       data: editData,
       horario: editHorario,
       observacoes: editObs.trim() || null,
-    }).eq("id", editingId);
+      duracao_minutos: editDuracao ? parseInt(editDuracao) : null,
+    } as any).eq("id", editingId);
     if (error) { toast.error("Erro ao atualizar."); return; }
     toast.success("Agendamento atualizado!");
     setEditingId(null);
@@ -180,7 +186,7 @@ const Agenda = () => {
   };
 
   const resetForm = () => {
-    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs("");
+    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
   };
 
   const openNewModal = () => {
@@ -283,7 +289,14 @@ const Agenda = () => {
                   <div key={a.id} className="flex gap-3 p-3 rounded-xl bg-accent/40 group">
                     <div className="flex flex-col items-center gap-1 min-w-[36px]">
                       <Clock size={12} className="text-primary" />
-                      <span className="text-xs font-body font-medium text-primary">{a.horario.slice(0, 5)}</span>
+                      <span className="text-xs font-body font-medium text-primary">
+                        {a.horario.slice(0, 5)}
+                        {a.duracao_minutos ? (() => {
+                          const [h, m] = a.horario.split(":").map(Number);
+                          const end = new Date(2000, 0, 1, h, m + a.duracao_minutos);
+                          return ` - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+                        })() : ""}
+                      </span>
                     </div>
                     <div className="h-full w-px bg-primary/30" />
                     <div className="flex-1 min-w-0">
@@ -343,7 +356,12 @@ const Agenda = () => {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
-                <select value={editProcedimentoId} onChange={e => setEditProcedimentoId(e.target.value)} className={inputCls}>
+                <select value={editProcedimentoId} onChange={e => {
+                  const procId = e.target.value;
+                  setEditProcedimentoId(procId);
+                  const proc = procedimentos.find(p => p.id === procId);
+                  if (proc?.duracao_minutos != null) setEditDuracao(String(proc.duracao_minutos));
+                }} className={inputCls}>
                   <option value="">Selecione</option>
                   {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
@@ -352,9 +370,15 @@ const Agenda = () => {
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
                 <input type="date" value={editData} onChange={e => setEditData(e.target.value)} className={inputCls} />
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
-                <input type="time" value={editHorario} onChange={e => setEditHorario(e.target.value)} className={inputCls} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
+                  <input type="time" value={editHorario} onChange={e => setEditHorario(e.target.value)} className={inputCls} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Duração (min)</label>
+                  <input type="number" value={editDuracao} onChange={e => setEditDuracao(e.target.value)} className={inputCls} placeholder="Ex: 60" />
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
@@ -408,7 +432,12 @@ const Agenda = () => {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimento *</label>
-                <select value={newProcedimentoId} onChange={e => setNewProcedimentoId(e.target.value)} className={inputCls}>
+                <select value={newProcedimentoId} onChange={e => {
+                  const procId = e.target.value;
+                  setNewProcedimentoId(procId);
+                  const proc = procedimentos.find(p => p.id === procId);
+                  if (proc?.duracao_minutos != null) setNewDuracao(String(proc.duracao_minutos));
+                }} className={inputCls}>
                   <option value="">Selecione um procedimento</option>
                   {procedimentos.map(p => (
                     <option key={p.id} value={p.id}>{p.nome}</option>
@@ -419,9 +448,15 @@ const Agenda = () => {
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
                 <input type="date" value={newData} onChange={e => setNewData(e.target.value)} className={inputCls} />
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
-                <input type="time" value={newHorario} onChange={e => setNewHorario(e.target.value)} className={inputCls} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Horário *</label>
+                  <input type="time" value={newHorario} onChange={e => setNewHorario(e.target.value)} className={inputCls} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Duração (min)</label>
+                  <input type="number" value={newDuracao} onChange={e => setNewDuracao(e.target.value)} className={inputCls} placeholder="Ex: 60" />
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Observações</label>
