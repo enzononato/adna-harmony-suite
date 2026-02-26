@@ -37,6 +37,8 @@ const Agenda = () => {
   const [avisoTexto, setAvisoTexto] = useState("");
   const [cronogramaFilter, setCronogramaFilter] = useState<"todos" | "normal" | "retorno" | "confirmado">("todos");
   const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
+  const [showCadastrarModal, setShowCadastrarModal] = useState(false);
+  const [nomePendenteCadastro, setNomePendenteCadastro] = useState("");
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -218,9 +220,18 @@ const Agenda = () => {
       }
     }
 
+    // Check if patient is not registered and offer to register
+    const isRegistered = pacientes.some(p => p.nome.toLowerCase() === newPaciente.trim().toLowerCase());
+    const savedName = newPaciente.trim();
+
     setShowNewModal(false);
     resetForm();
     fetchData();
+
+    if (!isRegistered) {
+      setNomePendenteCadastro(savedName);
+      setShowCadastrarModal(true);
+    }
   };
 
   const isRetornoAuto = (a: Agendamento) => a.observacoes === "Retorno automático";
@@ -379,6 +390,17 @@ const Agenda = () => {
 
   const handleToggleAviso = async (id: string, concluido: boolean) => {
     await supabase.from("avisos").update({ concluido: !concluido } as any).eq("id", id);
+    fetchData();
+  };
+
+
+  const handleCadastrarPaciente = async () => {
+    if (!nomePendenteCadastro.trim()) return;
+    const { error } = await supabase.from("pacientes").insert({ nome: nomePendenteCadastro.trim() } as any);
+    if (error) { toast.error("Erro ao cadastrar paciente."); return; }
+    toast.success(`${nomePendenteCadastro} cadastrado(a) como paciente!`);
+    setShowCadastrarModal(false);
+    setNomePendenteCadastro("");
     fetchData();
   };
 
@@ -782,6 +804,26 @@ const Agenda = () => {
               <button onClick={() => setShowAvisoModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
               <button onClick={handleAddAviso} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-all">
                 Salvar aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Cadastrar paciente */}
+      {showCadastrarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => { setShowCadastrarModal(false); setNomePendenteCadastro(""); }} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-sm p-6">
+            <div className="h-0.5 w-full rounded-full mb-6" style={{ background: "var(--gradient-gold)" }} />
+            <h3 className="font-display text-xl mb-3">Cadastrar como paciente?</h3>
+            <p className="text-sm text-muted-foreground font-body mb-5">
+              <strong className="text-foreground">{nomePendenteCadastro}</strong> não está cadastrado(a) como paciente. Deseja cadastrar agora?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowCadastrarModal(false); setNomePendenteCadastro(""); }} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Não</button>
+              <button onClick={handleCadastrarPaciente} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
+                Sim, cadastrar
               </button>
             </div>
           </div>
