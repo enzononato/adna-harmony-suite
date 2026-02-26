@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -18,6 +18,8 @@ type Agendamento = {
   procedimentos?: { nome: string; duracao_minutos?: number | null } | null;
 };
 
+type Aviso = { id: string; texto: string; data: string; concluido: boolean; created_at: string };
+
 type ViewMode = "mensal" | "semanal" | "diario";
 
 const Agenda = () => {
@@ -30,6 +32,10 @@ const Agenda = () => {
   const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [showAvisoModal, setShowAvisoModal] = useState(false);
+  const [avisoTexto, setAvisoTexto] = useState("");
+  const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -53,14 +59,16 @@ const Agenda = () => {
   const [editDuracao, setEditDuracao] = useState("");
 
   const fetchData = async () => {
-    const [pRes, aRes, pacRes] = await Promise.all([
+    const [pRes, aRes, pacRes, avRes] = await Promise.all([
       supabase.from("procedimentos").select("id, nome, duracao_minutos").order("nome"),
       supabase.from("agendamentos").select("*, procedimentos(nome)").order("horario"),
       supabase.from("pacientes").select("id, nome").order("nome"),
+      supabase.from("avisos").select("*").order("data"),
     ]);
     if (pRes.data) setProcedimentos(pRes.data);
     if (aRes.data) setAgendamentos(aRes.data as Agendamento[]);
     if (pacRes.data) setPacientes(pacRes.data);
+    if (avRes.data) setAvisos(avRes.data as Aviso[]);
   };
 
   // Copy past appointments to patient history (tratamentos)
@@ -113,12 +121,22 @@ const Agenda = () => {
     : null;
 
   const dayAppointments = agendamentos.filter(a => a.data === selectedDateStr);
+  const dayAvisos = avisos.filter(a => a.data === selectedDateStr);
 
   const daysWithAppts = new Set(
     agendamentos
       .filter(a => {
         const d = new Date(a.data + "T00:00:00");
         return d.getFullYear() === year && d.getMonth() === month;
+      })
+      .map(a => new Date(a.data + "T00:00:00").getDate())
+  );
+
+  const daysWithAvisos = new Set(
+    avisos
+      .filter(a => {
+        const d = new Date(a.data + "T00:00:00");
+        return d.getFullYear() === year && d.getMonth() === month && !a.concluido;
       })
       .map(a => new Date(a.data + "T00:00:00").getDate())
   );
@@ -219,6 +237,33 @@ const Agenda = () => {
     fetchData();
   };
 
+  const handleAddAviso = async () => {
+    if (!avisoTexto.trim()) { toast.error("Digite o texto do aviso."); return; }
+    const { error } = await supabase.from("avisos").insert({ texto: avisoTexto.trim(), data: avisoData } as any);
+    if (error) { toast.error("Erro ao salvar aviso."); return; }
+    toast.success("Aviso criado!");
+    setShowAvisoModal(false);
+    setAvisoTexto("");
+    fetchData();
+  };
+
+  const handleDeleteAviso = async (id: string) => {
+    const { error } = await supabase.from("avisos").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir aviso."); return; }
+    fetchData();
+  };
+
+  const handleToggleAviso = async (id: string, concluido: boolean) => {
+    await supabase.from("avisos").update({ concluido: !concluido } as any).eq("id", id);
+    fetchData();
+  };
+
+  const openAvisoModal = () => {
+    setAvisoTexto("");
+    setAvisoData(selectedDateStr || new Date().toISOString().slice(0, 10));
+    setShowAvisoModal(true);
+  };
+
   const resetForm = () => {
     setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoId(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
   };
@@ -257,6 +302,12 @@ const Agenda = () => {
               <Plus size={15} />
               Novo agendamento
             </button>
+            <button
+              onClick={openAvisoModal}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90 bg-destructive text-destructive-foreground">
+              <Bell size={15} />
+              Novo aviso
+            </button>
           </div>
         </div>
 
@@ -282,6 +333,7 @@ const Agenda = () => {
                 const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
                 const isSelected = day === selectedDay;
                 const hasAppts = daysWithAppts.has(day);
+                const hasAvisos = daysWithAvisos.has(day);
                 return (
                   <button
                     key={day}
@@ -290,9 +342,10 @@ const Agenda = () => {
                     style={isSelected ? { background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))", fontWeight: 600 }
                       : isToday ? { border: "1.5px solid hsl(var(--primary))", color: "hsl(var(--primary))", fontWeight: 600 } : {}}>
                     {day}
-                    {hasAppts && !isSelected && (
+                    {(hasAppts || hasAvisos) && !isSelected && (
                       <span className="absolute bottom-1 flex gap-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        {hasAppts && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                        {hasAvisos && <span className="w-1.5 h-1.5 rounded-full bg-destructive" />}
                       </span>
                     )}
                   </button>
@@ -310,15 +363,38 @@ const Agenda = () => {
               <h3 className="font-display text-xl mt-0.5">Cronograma</h3>
             </div>
 
-            {dayAppointments.length === 0 ? (
+            {dayAppointments.length === 0 && dayAvisos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-accent">
                   <CalendarIcon />
                 </div>
-                <p className="text-sm text-muted-foreground font-body">Nenhuma consulta neste dia</p>
+                <p className="text-sm text-muted-foreground font-body">Nenhuma consulta ou aviso neste dia</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
+                {/* Avisos */}
+                {dayAvisos.map(av => (
+                  <div key={av.id} className={`flex gap-3 p-3 rounded-xl border border-destructive/30 group ${av.concluido ? "bg-muted/40 opacity-60" : "bg-destructive/10"}`}>
+                    <div className="flex flex-col items-center gap-1 min-w-[36px]">
+                      <Bell size={12} className="text-destructive" />
+                      <span className="text-[10px] font-body font-medium text-destructive">Aviso</span>
+                    </div>
+                    <div className="h-full w-px bg-destructive/30" />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-body font-medium ${av.concluido ? "line-through text-muted-foreground" : "text-destructive"}`}>{av.texto}</p>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all self-start">
+                      <button onClick={() => handleToggleAviso(av.id, av.concluido)}
+                        className="text-muted-foreground hover:text-primary p-1" title={av.concluido ? "Reabrir" : "Concluir"}>
+                        {av.concluido ? <AlertTriangle size={13} /> : <Save size={13} />}
+                      </button>
+                      <button onClick={() => handleDeleteAviso(av.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {/* Agendamentos */}
                 {dayAppointments.map(a => (
                   <div key={a.id} className="flex gap-3 p-3 rounded-xl bg-accent/40 group">
                     <div className="flex flex-col items-center gap-1 min-w-[36px]">
@@ -501,6 +577,34 @@ const Agenda = () => {
               <button onClick={() => setShowNewModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
               <button onClick={handleSave} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
                 Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Novo Aviso */}
+      {showAvisoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setShowAvisoModal(false)} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-sm p-6">
+            <div className="h-0.5 w-full rounded-full mb-6 bg-destructive" />
+            <h3 className="font-display text-2xl mb-5">Novo Aviso</h3>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data</label>
+                <input type="date" value={avisoData} onChange={e => setAvisoData(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Aviso *</label>
+                <textarea rows={3} value={avisoTexto} onChange={e => setAvisoTexto(e.target.value)}
+                  className={inputCls + " resize-none"} placeholder="Ex: Lembrar paciente sobre retorno..." autoFocus />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowAvisoModal(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Cancelar</button>
+              <button onClick={handleAddAviso} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-all">
+                Salvar aviso
               </button>
             </div>
           </div>
