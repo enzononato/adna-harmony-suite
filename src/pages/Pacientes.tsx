@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,7 @@ const getFileIcon = (tipo: string) => {
 };
 
 const Pacientes = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [tratamentos, setTratamentos] = useState<Tratamento[]>([]);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
@@ -75,6 +77,20 @@ const Pacientes = () => {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Open patient from URL param (e.g. ?abrir=<id>)
+  useEffect(() => {
+    const abrirId = searchParams.get("abrir");
+    if (abrirId && pacientes.length > 0) {
+      const found = pacientes.find(p => p.id === abrirId);
+      if (found) {
+        setSelectedId(abrirId);
+        setEditingInfo(true);
+        searchParams.delete("abrir");
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [pacientes, searchParams]);
 
   const selected = pacientes.find(p => p.id === selectedId) || null;
   const selectedTrats = tratamentos.filter(t => t.paciente_id === selectedId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
