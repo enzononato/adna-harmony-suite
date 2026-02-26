@@ -188,6 +188,80 @@ export type Database = {
         }
         Relationships: []
       }
+      planejamento_sessoes: {
+        Row: {
+          created_at: string
+          data: string
+          id: string
+          notas: string | null
+          planejamento_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: string
+          id?: string
+          notas?: string | null
+          planejamento_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: string
+          notas?: string | null
+          planejamento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planejamento_sessoes_planejamento_id_fkey"
+            columns: ["planejamento_id"]
+            isOneToOne: false
+            referencedRelation: "planejamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planejamentos: {
+        Row: {
+          created_at: string
+          id: string
+          observacoes: string | null
+          paciente_id: string
+          procedimento_id: string
+          sessoes_planejadas: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          paciente_id: string
+          procedimento_id: string
+          sessoes_planejadas?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          observacoes?: string | null
+          paciente_id?: string
+          procedimento_id?: string
+          sessoes_planejadas?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planejamentos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planejamentos_procedimento_id_fkey"
+            columns: ["procedimento_id"]
+            isOneToOne: false
+            referencedRelation: "procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procedimentos: {
         Row: {
           created_at: string

@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download, Pencil } from "lucide-react";
+import { Search, Plus, ChevronRight, X, MessageCircle, FileText, Calendar, ClipboardList, ArrowLeft, Trash2, Save, Upload, File, Image, Download, Pencil, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 type Paciente = { id: string; nome: string; telefone: string; data_nascimento: string | null; email: string | null; anamnese: string | null; created_at: string };
 type Tratamento = { id: string; paciente_id: string; procedimento: string; notas: string | null; data: string; created_at: string };
 type Arquivo = { id: string; paciente_id: string; nome_arquivo: string; storage_path: string; tipo: string; created_at: string };
-type Tab = "historico" | "anamnese" | "arquivos";
+type Procedimento = { id: string; nome: string };
+type Planejamento = { id: string; paciente_id: string; procedimento_id: string; sessoes_planejadas: number; observacoes: string | null; created_at: string };
+type PlanejamentoSessao = { id: string; planejamento_id: string; data: string; notas: string | null; created_at: string };
+type Tab = "historico" | "anamnese" | "arquivos" | "planejamento";
 
 const fmtDate = (d: string | null) => d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
 const getInitials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -27,6 +31,9 @@ const Pacientes = () => {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [tratamentos, setTratamentos] = useState<Tratamento[]>([]);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
+  const [procedimentos, setProcedimentos] = useState<Procedimento[]>([]);
+  const [planejamentos, setPlanejamentos] = useState<Planejamento[]>([]);
+  const [planejamentoSessoes, setPlanejamentoSessoes] = useState<PlanejamentoSessao[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("historico");
@@ -63,16 +70,31 @@ const Pacientes = () => {
   const detailFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Planejamento modals
+  const [showNewPlano, setShowNewPlano] = useState(false);
+  const [planoProcId, setPlanoProcId] = useState("");
+  const [planoSessoes, setPlanoSessoes] = useState(1);
+  const [planoObs, setPlanoObs] = useState("");
+  const [showNewSessao, setShowNewSessao] = useState<string | null>(null); // planejamento_id
+  const [sessaoData, setSessaoData] = useState(new Date().toISOString().slice(0, 10));
+  const [sessaoNotas, setSessaoNotas] = useState("");
+
   const fetchData = async () => {
     setLoading(true);
-    const [pRes, tRes, aRes] = await Promise.all([
+    const [pRes, tRes, aRes, procRes, planRes, planSesRes] = await Promise.all([
       supabase.from("pacientes").select("*").order("nome"),
       supabase.from("tratamentos").select("*").order("data", { ascending: false }),
       supabase.from("paciente_arquivos").select("*").order("created_at", { ascending: false }),
+      supabase.from("procedimentos").select("id, nome").order("nome"),
+      supabase.from("planejamentos").select("*").order("created_at", { ascending: false }),
+      supabase.from("planejamento_sessoes").select("*").order("data", { ascending: true }),
     ]);
     if (pRes.data) setPacientes(pRes.data as Paciente[]);
     if (tRes.data) setTratamentos(tRes.data as Tratamento[]);
     if (aRes.data) setArquivos(aRes.data as Arquivo[]);
+    if (procRes.data) setProcedimentos(procRes.data as Procedimento[]);
+    if (planRes.data) setPlanejamentos(planRes.data as Planejamento[]);
+    if (planSesRes.data) setPlanejamentoSessoes(planSesRes.data as PlanejamentoSessao[]);
     setLoading(false);
   };
 
@@ -95,6 +117,7 @@ const Pacientes = () => {
   const selected = pacientes.find(p => p.id === selectedId) || null;
   const selectedTrats = tratamentos.filter(t => t.paciente_id === selectedId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   const selectedArquivos = arquivos.filter(a => a.paciente_id === selectedId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const selectedPlanos = planejamentos.filter(p => p.paciente_id === selectedId);
   const filtered = pacientes.filter(p => p.nome.toLowerCase().includes(search.toLowerCase()));
 
   const uploadFilesForPatient = async (pacienteId: string, files: File[]) => {
@@ -207,6 +230,57 @@ const Pacientes = () => {
 
   const whatsappLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "")}`;
 
+  // Planejamento handlers
+  const handleNewPlano = async () => {
+    if (!planoProcId || !selectedId) { toast.error("Selecione um procedimento."); return; }
+    if (planoSessoes < 1) { toast.error("Informe a quantidade de sessões."); return; }
+    const { error } = await supabase.from("planejamentos").insert({
+      paciente_id: selectedId,
+      procedimento_id: planoProcId,
+      sessoes_planejadas: planoSessoes,
+      observacoes: planoObs.trim() || null,
+    } as any);
+    if (error) { toast.error("Erro ao criar plano."); return; }
+    toast.success("Plano criado!");
+    setShowNewPlano(false);
+    setPlanoProcId("");
+    setPlanoSessoes(1);
+    setPlanoObs("");
+    fetchData();
+  };
+
+  const handleNewSessao = async () => {
+    if (!showNewSessao) return;
+    const { error } = await supabase.from("planejamento_sessoes").insert({
+      planejamento_id: showNewSessao,
+      data: sessaoData,
+      notas: sessaoNotas.trim() || null,
+    } as any);
+    if (error) { toast.error("Erro ao registrar sessão."); return; }
+    toast.success("Sessão registrada!");
+    setShowNewSessao(null);
+    setSessaoData(new Date().toISOString().slice(0, 10));
+    setSessaoNotas("");
+    fetchData();
+  };
+
+  const handleDeletePlano = async (id: string) => {
+    if (!confirm("Excluir este plano e todas as sessões?")) return;
+    const { error } = await supabase.from("planejamentos").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir."); return; }
+    toast.success("Plano excluído.");
+    fetchData();
+  };
+
+  const handleDeleteSessao = async (id: string) => {
+    const { error } = await supabase.from("planejamento_sessoes").delete().eq("id", id);
+    if (error) { toast.error("Erro ao excluir."); return; }
+    toast.success("Sessão excluída.");
+    fetchData();
+  };
+
+  const getProcNome = (procId: string) => procedimentos.find(p => p.id === procId)?.nome || "Procedimento";
+
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto">
@@ -269,11 +343,12 @@ const Pacientes = () => {
 
             {/* Tabs */}
             <div className="flex gap-1 mb-5 bg-muted p-1 rounded-xl w-fit flex-wrap">
-              {([["historico", "Histórico", FileText], ["anamnese", "Anamnese", ClipboardList], ["arquivos", "Arquivos", File]] as [Tab, string, typeof FileText][]).map(([t, label, Icon]) => (
+              {([["historico", "Histórico", FileText], ["anamnese", "Anamnese", ClipboardList], ["arquivos", "Arquivos", File], ["planejamento", "Planejamento", Target]] as [Tab, string, typeof FileText][]).map(([t, label, Icon]) => (
                 <button key={t} onClick={() => setTab(t)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-body transition-all"
                   style={tab === t ? { background: "hsl(var(--card))", color: "hsl(var(--primary))", fontWeight: 600, boxShadow: "var(--shadow-soft)" } : { color: "hsl(var(--muted-foreground))" }}>
                   <Icon size={14} />{label}
                   {t === "arquivos" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{selectedArquivos.length}</span>}
+                  {t === "planejamento" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">{selectedPlanos.length}</span>}
                 </button>
               ))}
             </div>
@@ -342,7 +417,7 @@ const Pacientes = () => {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : tab === "arquivos" ? (
               /* Arquivos tab */
               <div className="flex flex-col gap-4">
                 <input ref={detailFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={e => handleUploadInDetail(e.target.files)} />
@@ -391,6 +466,80 @@ const Pacientes = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            ) : (
+              /* Planejamento tab */
+              <div className="flex flex-col gap-4">
+                {selectedPlanos.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground font-body py-8">Nenhum plano de tratamento criado ainda.</p>
+                ) : (
+                  selectedPlanos.map(plano => {
+                    const sessoes = planejamentoSessoes.filter(s => s.planejamento_id === plano.id);
+                    const feitas = sessoes.length;
+                    const total = plano.sessoes_planejadas;
+                    const pct = Math.min(Math.round((feitas / total) * 100), 100);
+                    const concluido = feitas >= total;
+
+                    return (
+                      <div key={plano.id} className="bg-card rounded-2xl border border-border shadow-card p-5 group">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <p className="font-body font-medium text-sm">{getProcNome(plano.procedimento_id)}</p>
+                            {plano.observacoes && <p className="text-xs text-muted-foreground font-body mt-0.5">{plano.observacoes}</p>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-body px-2.5 py-1 rounded-full ${concluido ? "bg-green-100 text-green-700" : "bg-accent text-primary"}`}>
+                              {feitas}/{total} sessões
+                            </span>
+                            <button onClick={() => handleDeletePlano(plano.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1" title="Excluir plano">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="mb-3">
+                          <Progress value={pct} className="h-2.5" />
+                          <p className="text-[11px] text-muted-foreground font-body mt-1">{pct}% concluído</p>
+                        </div>
+
+                        {/* Sessions list */}
+                        {sessoes.length > 0 && (
+                          <div className="mb-3">
+                            <div className="h-px bg-border mb-3" />
+                            <div className="flex flex-col gap-2">
+                              {sessoes.map((s, i) => (
+                                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted text-sm font-body group/sessao">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-primary w-5">{i + 1}.</span>
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground"><Calendar size={10} />{fmtDate(s.data)}</span>
+                                    {s.notas && <span className="text-xs text-muted-foreground ml-1">— {s.notas}</span>}
+                                  </div>
+                                  <button onClick={() => handleDeleteSessao(s.id)} className="opacity-0 group-hover/sessao:opacity-100 text-muted-foreground hover:text-destructive transition-all p-0.5" title="Excluir sessão">
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {!concluido && (
+                          <button
+                            onClick={() => { setShowNewSessao(plano.id); setSessaoData(new Date().toISOString().slice(0, 10)); setSessaoNotas(""); }}
+                            className="flex items-center gap-2 text-sm font-body text-primary hover:underline mt-1">
+                            <Plus size={14} /> Registrar sessão
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+
+                <button onClick={() => { setShowNewPlano(true); setPlanoProcId(""); setPlanoSessoes(1); setPlanoObs(""); }}
+                  className="flex items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed border-border hover:border-primary/40 text-muted-foreground hover:text-primary transition-all font-body text-sm">
+                  <Plus size={15} /> Novo plano de tratamento
+                </button>
               </div>
             )}
           </div>
@@ -531,6 +680,65 @@ const Pacientes = () => {
               <div><label className={labelCls}>Notas / Observações</label><textarea value={tratNotas} onChange={e => setTratNotas(e.target.value)} className={inputCls + " resize-none h-24"} placeholder="Detalhes do tratamento, evolução, observações..." /></div>
               <button onClick={handleNewTreatment} className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-body font-medium text-sm hover:opacity-90 transition-opacity">
                 Registrar Tratamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Novo Plano */}
+      {showNewPlano && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewPlano(false)}>
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-display text-xl">Novo Plano</h2>
+                <p className="text-xs text-muted-foreground font-body">Planejamento de sessões</p>
+              </div>
+              <button onClick={() => setShowNewPlano(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>Procedimento *</label>
+                <select value={planoProcId} onChange={e => setPlanoProcId(e.target.value)} className={inputCls}>
+                  <option value="">Selecione...</option>
+                  {procedimentos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Quantidade de sessões *</label>
+                <input type="number" min={1} value={planoSessoes} onChange={e => setPlanoSessoes(parseInt(e.target.value) || 1)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Observações</label>
+                <textarea value={planoObs} onChange={e => setPlanoObs(e.target.value)} className={inputCls + " resize-none h-20"} placeholder="Notas sobre o planejamento..." />
+              </div>
+              <button onClick={handleNewPlano} className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-body font-medium text-sm hover:opacity-90 transition-opacity">
+                Criar Plano
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Nova Sessão */}
+      {showNewSessao && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNewSessao(null)}>
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-display text-xl">Registrar Sessão</h2>
+                <p className="text-xs text-muted-foreground font-body">Sessão realizada</p>
+              </div>
+              <button onClick={() => setShowNewSessao(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <div><label className={labelCls}>Data</label><input type="date" value={sessaoData} onChange={e => setSessaoData(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Notas / Observações</label><textarea value={sessaoNotas} onChange={e => setSessaoNotas(e.target.value)} className={inputCls + " resize-none h-20"} placeholder="Observações desta sessão..." /></div>
+              <button onClick={handleNewSessao} className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-body font-medium text-sm hover:opacity-90 transition-opacity">
+                Registrar Sessão
               </button>
             </div>
           </div>
