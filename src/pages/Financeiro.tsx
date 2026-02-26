@@ -388,6 +388,35 @@ const Financeiro = () => {
                   {CATEGORIAS_SAIDA.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              {/* Subtotal bar */}
+              {hasActiveFilters && filteredTransactions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpCircle size={13} className="text-primary" />
+                    <span className="text-xs font-body text-muted-foreground">Entradas:</span>
+                    <span className="text-xs font-body font-medium text-primary">
+                      {fmt(filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0))}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ArrowDownCircle size={13} className="text-destructive" />
+                    <span className="text-xs font-body text-muted-foreground">Saídas:</span>
+                    <span className="text-xs font-body font-medium text-destructive">
+                      {fmt(filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0))}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign size={13} className="text-foreground" />
+                    <span className="text-xs font-body text-muted-foreground">Saldo:</span>
+                    <span className="text-xs font-body font-medium">
+                      {fmt(
+                        filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0) -
+                        filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           {loading ? (
