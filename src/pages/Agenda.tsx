@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ProcedimentoMultiSelect from "@/components/ProcedimentoMultiSelect";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -780,22 +781,11 @@ const Agenda = () => {
                   </div>
                 )}
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimentos *</label>
-                <div className="max-h-36 overflow-y-auto rounded-lg border border-border bg-muted p-1.5 flex flex-col gap-0.5">
-                  {procedimentos.map(p => (
-                    <label key={p.id} className={`flex items-center gap-2 text-sm font-body cursor-pointer px-2 py-1.5 rounded-md transition-colors ${editProcedimentoIds.includes(p.id) ? "bg-accent text-primary font-medium" : "hover:bg-accent/50"}`}>
-                      <input type="checkbox" checked={editProcedimentoIds.includes(p.id)}
-                        onChange={() => toggleProc(p.id, editProcedimentoIds, setEditProcedimentoIds, setEditDuracao)}
-                        className="rounded border-border accent-primary" />
-                      {p.nome}
-                    </label>
-                  ))}
-                </div>
-                {editProcedimentoIds.length > 0 && (
-                  <p className="text-[11px] text-primary font-body">✓ {editProcedimentoIds.length} procedimento(s)</p>
-                )}
-              </div>
+              <ProcedimentoMultiSelect
+                procedimentos={procedimentos}
+                selectedIds={editProcedimentoIds}
+                onChange={(ids) => { setEditProcedimentoIds(ids); setEditDuracao(recalcDuration(ids)); }}
+              />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
                 <input type="date" value={editData} onChange={e => setEditData(e.target.value)} className={inputCls} />
@@ -854,22 +844,11 @@ const Agenda = () => {
                   </div>
                 )}
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Procedimentos *</label>
-                <div className="max-h-36 overflow-y-auto rounded-lg border border-border bg-muted p-1.5 flex flex-col gap-0.5">
-                  {procedimentos.map(p => (
-                    <label key={p.id} className={`flex items-center gap-2 text-sm font-body cursor-pointer px-2 py-1.5 rounded-md transition-colors ${newProcedimentoIds.includes(p.id) ? "bg-accent text-primary font-medium" : "hover:bg-accent/50"}`}>
-                      <input type="checkbox" checked={newProcedimentoIds.includes(p.id)}
-                        onChange={() => toggleProc(p.id, newProcedimentoIds, setNewProcedimentoIds, setNewDuracao)}
-                        className="rounded border-border accent-primary" />
-                      {p.nome}
-                    </label>
-                  ))}
-                </div>
-                {newProcedimentoIds.length > 0 && (
-                  <p className="text-[11px] text-primary font-body">✓ {newProcedimentoIds.length} procedimento(s)</p>
-                )}
-              </div>
+              <ProcedimentoMultiSelect
+                procedimentos={procedimentos}
+                selectedIds={newProcedimentoIds}
+                onChange={(ids) => { setNewProcedimentoIds(ids); setNewDuracao(recalcDuration(ids)); }}
+              />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
                 <input type="date" value={newData} onChange={e => setNewData(e.target.value)} className={inputCls} />
