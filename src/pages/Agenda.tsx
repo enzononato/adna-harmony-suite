@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,7 @@ type Aviso = { id: string; texto: string; data: string; concluido: boolean; crea
 type ViewMode = "mensal" | "semanal" | "diario";
 
 const Agenda = () => {
+  const navigate = useNavigate();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -396,12 +398,15 @@ const Agenda = () => {
 
   const handleCadastrarPaciente = async () => {
     if (!nomePendenteCadastro.trim()) return;
-    const { error } = await supabase.from("pacientes").insert({ nome: nomePendenteCadastro.trim() } as any);
+    const { data, error } = await supabase.from("pacientes").insert({ nome: nomePendenteCadastro.trim() } as any).select("id").single();
     if (error) { toast.error("Erro ao cadastrar paciente."); return; }
     toast.success(`${nomePendenteCadastro} cadastrado(a) como paciente!`);
     setShowCadastrarModal(false);
     setNomePendenteCadastro("");
     fetchData();
+    if (data?.id) {
+      navigate(`/pacientes?abrir=${data.id}`);
+    }
   };
 
   const openAvisoModal = () => {
