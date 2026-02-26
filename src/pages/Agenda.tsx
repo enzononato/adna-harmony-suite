@@ -600,7 +600,7 @@ const Agenda = () => {
                             </button>
                           </>
                         )}
-                        <div className={`flex gap-1 ${isRetorno ? "" : "opacity-0 group-hover:opacity-100"} transition-all`}>
+                        <div className={`flex gap-1 ${isRetorno || isConfirmado ? "" : "opacity-0 group-hover:opacity-100"} transition-all`}>
                           <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
                             <Pencil size={13} />
                           </button>
