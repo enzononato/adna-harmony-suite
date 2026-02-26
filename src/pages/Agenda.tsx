@@ -35,6 +35,7 @@ const Agenda = () => {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [showAvisoModal, setShowAvisoModal] = useState(false);
   const [avisoTexto, setAvisoTexto] = useState("");
+  const [cronogramaFilter, setCronogramaFilter] = useState<"todos" | "normal" | "retorno" | "confirmado">("todos");
   const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
 
   // Form state (new)
@@ -226,6 +227,7 @@ const Agenda = () => {
   };
 
   const isRetornoAuto = (a: Agendamento) => a.observacoes === "Retorno automático";
+  const isRetornoConfirmado = (a: Agendamento) => a.observacoes === "Retorno confirmado";
 
   const handleConfirmRetorno = async (a: Agendamento) => {
     // Mark this return as confirmed (remove the "Retorno automático" tag)
@@ -481,11 +483,27 @@ const Agenda = () => {
 
           {/* Day appointments */}
           <div className="bg-card rounded-2xl border border-border shadow-card p-5">
-            <div className="mb-4">
+            <div className="mb-3">
               <p className="text-xs uppercase tracking-widest text-muted-foreground font-body">
                 {selectedDay ? `${selectedDay} de ${MONTHS[month]}` : "Selecione um dia"}
               </p>
               <h3 className="font-display text-xl mt-0.5">Cronograma</h3>
+            </div>
+
+            {/* Legenda */}
+            <div className="flex flex-wrap gap-3 mb-3">
+              {[
+                { key: "todos", label: "Todos", color: "bg-muted-foreground" },
+                { key: "normal", label: "Normal", color: "bg-primary" },
+                { key: "retorno", label: "Retorno", color: "bg-blue-500" },
+                { key: "confirmado", label: "Confirmado", color: "bg-green-500" },
+              ].map(f => (
+                <button key={f.key} onClick={() => setCronogramaFilter(f.key as any)}
+                  className={`flex items-center gap-1.5 text-[10px] font-body font-medium px-2 py-1 rounded-full border transition-all ${cronogramaFilter === f.key ? "border-foreground/30 bg-accent" : "border-transparent opacity-60 hover:opacity-100"}`}>
+                  <span className={`w-2 h-2 rounded-full ${f.color}`} />
+                  {f.label}
+                </button>
+              ))}
             </div>
 
             {dayAppointments.length === 0 && dayAvisos.length === 0 ? (
@@ -520,13 +538,31 @@ const Agenda = () => {
                   </div>
                 ))}
                 {/* Agendamentos */}
-                {dayAppointments.map(a => {
+                {dayAppointments
+                  .filter(a => {
+                    if (cronogramaFilter === "todos") return true;
+                    if (cronogramaFilter === "retorno") return isRetornoAuto(a);
+                    if (cronogramaFilter === "confirmado") return isRetornoConfirmado(a);
+                    return !isRetornoAuto(a) && !isRetornoConfirmado(a);
+                  })
+                  .map(a => {
                   const isRetorno = isRetornoAuto(a);
+                  const isConfirmado = isRetornoConfirmado(a);
+                  const cardClass = isRetorno
+                    ? "bg-blue-500/10 border border-blue-500/30"
+                    : isConfirmado
+                      ? "bg-green-500/10 border border-green-500/30"
+                      : "bg-accent/40";
+                  const accentColor = isRetorno ? "text-blue-500" : isConfirmado ? "text-green-600" : "text-primary";
+                  const dividerColor = isRetorno ? "bg-blue-500/30" : isConfirmado ? "bg-green-500/30" : "bg-primary/30";
+
                   return (
-                    <div key={a.id} className={`flex gap-3 p-3 rounded-xl group ${isRetorno ? "bg-blue-500/10 border border-blue-500/30" : "bg-accent/40"}`}>
+                    <div key={a.id} className={`flex gap-3 p-3 rounded-xl group ${cardClass}`}>
                       <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                        {isRetorno ? <RotateCcw size={12} className="text-blue-500" /> : <Clock size={12} className="text-primary" />}
-                        <span className={`text-xs font-body font-medium ${isRetorno ? "text-blue-500" : "text-primary"}`}>
+                        {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
+                          : isConfirmado ? <Check size={12} className="text-green-600" />
+                          : <Clock size={12} className="text-primary" />}
+                        <span className={`text-xs font-body font-medium ${accentColor}`}>
                           {a.horario.slice(0, 5)}
                           {a.duracao_minutos ? (() => {
                             const [h, m] = a.horario.split(":").map(Number);
@@ -535,7 +571,7 @@ const Agenda = () => {
                           })() : ""}
                         </span>
                       </div>
-                      <div className={`h-full w-px ${isRetorno ? "bg-blue-500/30" : "bg-primary/30"}`} />
+                      <div className={`h-full w-px ${dividerColor}`} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <User size={11} className="text-muted-foreground flex-shrink-0" />
@@ -545,6 +581,11 @@ const Agenda = () => {
                         {isRetorno && (
                           <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
                             <RotateCcw size={9} /> Retorno automático
+                          </span>
+                        )}
+                        {isConfirmado && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-green-500/20 text-green-700">
+                            <Check size={9} /> Retorno confirmado
                           </span>
                         )}
                       </div>
