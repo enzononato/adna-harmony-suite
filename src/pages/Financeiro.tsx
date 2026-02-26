@@ -8,6 +8,7 @@ import { toast } from "sonner";
 // Types
 type Procedimento = { id: string; nome: string; preco: number | null; duracao_minutos: number | null; dias_retorno: number | null };
 type Paciente = { id: string; nome: string };
+type EntradaProcedimento = { entrada_id: string; procedimento_id: string };
 type Entrada = { id: string; paciente_nome: string; procedimento_id: string; valor: number; forma_pagamento: string; observacoes: string | null; data: string; created_at: string };
 type Saida = { id: string; descricao: string; categoria: string; valor: number; observacoes: string | null; data: string; created_at: string };
 
@@ -40,6 +41,7 @@ const Financeiro = () => {
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [entradas, setEntradas] = useState<Entrada[]>([]);
   const [saidas, setSaidas] = useState<Saida[]>([]);
+  const [entradaProcedimentos, setEntradaProcedimentos] = useState<EntradaProcedimento[]>([]);
   const [showEntradaModal, setShowEntradaModal] = useState(false);
   const [showSaidaModal, setShowSaidaModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -50,9 +52,9 @@ const Financeiro = () => {
   const [editingRetorno, setEditingRetorno] = useState<string | null>(null);
   const [retornoValue, setRetornoValue] = useState("");
 
-  // Entrada form
+  // Entrada form - multi-procedure
   const [ePaciente, setEPaciente] = useState("");
-  const [eProcedimento, setEProcedimento] = useState("");
+  const [eProcedimentos, setEProcedimentos] = useState<string[]>([]);
   const [eValor, setEValor] = useState("");
   const [ePagamento, setEPagamento] = useState("PIX");
   const [eObs, setEObs] = useState("");
@@ -78,31 +80,68 @@ const Financeiro = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [procRes, pacRes, entRes, saiRes] = await Promise.all([
+    const [procRes, pacRes, entRes, saiRes, epRes] = await Promise.all([
       supabase.from("procedimentos").select("*").order("nome"),
       supabase.from("pacientes").select("id, nome").order("nome"),
       supabase.from("entradas").select("*").order("data", { ascending: false }),
       supabase.from("saidas").select("*").order("data", { ascending: false }),
+      supabase.from("entrada_procedimentos").select("entrada_id, procedimento_id"),
     ]);
     if (procRes.data) setProcedimentos(procRes.data);
     if (pacRes.data) setPacientes(pacRes.data);
     if (entRes.data) setEntradas(entRes.data as Entrada[]);
     if (saiRes.data) setSaidas(saiRes.data as Saida[]);
+    if (epRes.data) setEntradaProcedimentos(epRes.data as EntradaProcedimento[]);
     setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  // Get procedure names for an entrada
+  const getEntradaProcNames = (entradaId: string) => {
+    const eps = entradaProcedimentos.filter(ep => ep.entrada_id === entradaId);
+    if (eps.length > 0) {
+      return eps.map(ep => procMap[ep.procedimento_id] || "").filter(Boolean).join(", ");
+    }
+    const entrada = entradas.find(e => e.id === entradaId);
+    return entrada ? (procMap[entrada.procedimento_id] || "Procedimento") : "Procedimento";
+  };
+
+  // Get procedure IDs for an entrada
+  const getEntradaProcIds = (entradaId: string) => {
+    const eps = entradaProcedimentos.filter(ep => ep.entrada_id === entradaId);
+    if (eps.length > 0) return eps.map(ep => ep.procedimento_id);
+    const entrada = entradas.find(e => e.id === entradaId);
+    return entrada?.procedimento_id ? [entrada.procedimento_id] : [];
+  };
+
+  const recalcEntradaValor = (procIds: string[]) => {
+    const total = procIds.reduce((sum, id) => {
+      const p = procedimentos.find(pr => pr.id === id);
+      return sum + (p?.preco ? Number(p.preco) : 0);
+    }, 0);
+    return total > 0 ? String(total) : "";
+  };
+
   const handleAddEntrada = async () => {
-    if (!ePaciente || !eProcedimento || !eValor) { toast.error("Preencha paciente, procedimento e valor."); return; }
-    const { error } = await supabase.from("entradas").insert({
-      paciente_nome: ePaciente, procedimento_id: eProcedimento, valor: parseFloat(eValor),
+    if (!ePaciente || eProcedimentos.length === 0 || !eValor) { toast.error("Preencha paciente, procedimento(s) e valor."); return; }
+    const { data: newEntrada, error } = await supabase.from("entradas").insert({
+      paciente_nome: ePaciente, procedimento_id: eProcedimentos[0], valor: parseFloat(eValor),
       forma_pagamento: ePagamento, observacoes: eObs || null, data: eData,
-    });
-    if (error) { toast.error("Erro ao salvar entrada."); return; }
+    }).select("id").single();
+    if (error || !newEntrada) { toast.error("Erro ao salvar entrada."); return; }
+
+    // Insert junction rows
+    for (const procId of eProcedimentos) {
+      await supabase.from("entrada_procedimentos").insert({
+        entrada_id: newEntrada.id,
+        procedimento_id: procId,
+      } as any);
+    }
+
     toast.success("Entrada registrada!");
     setShowEntradaModal(false);
-    setEPaciente(""); setEProcedimento(""); setEValor(""); setEObs("");
+    setEPaciente(""); setEProcedimentos([]); setEValor(""); setEObs("");
     fetchData();
   };
 
@@ -147,7 +186,6 @@ const Financeiro = () => {
     const valor = duracaoValue ? parseInt(duracaoValue) : null;
     const { error } = await supabase.from("procedimentos").update({ duracao_minutos: valor } as any).eq("id", procId);
     if (error) { toast.error("Erro ao salvar duração."); return; }
-    // Atualizar agendamentos existentes que não têm duração definida
     if (valor != null) {
       await supabase.from("agendamentos").update({ duracao_minutos: valor } as any).eq("procedimento_id", procId).is("duracao_minutos", null);
     }
@@ -174,9 +212,14 @@ const Financeiro = () => {
 
   const procMap = Object.fromEntries(procedimentos.map(p => [p.id, p.nome]));
 
-  // Pie data: revenue by procedure
+  // Pie data: revenue by procedure (using junction table)
   const pieAgg: Record<string, number> = {};
-  entradas.forEach(e => { const name = procMap[e.procedimento_id] || "Outro"; pieAgg[name] = (pieAgg[name] || 0) + Number(e.valor); });
+  entradas.forEach(e => {
+    const procIds = getEntradaProcIds(e.id);
+    const names = procIds.map(id => procMap[id] || "").filter(Boolean);
+    const label = names.length > 0 ? names.join(", ") : "Outro";
+    pieAgg[label] = (pieAgg[label] || 0) + Number(e.valor);
+  });
   const pieData = Object.entries(pieAgg).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
   // Monthly bar chart (last 6 months)
@@ -190,7 +233,7 @@ const Financeiro = () => {
 
   // Combined list for display
   const allTransactions = [
-    ...entradas.map(e => ({ ...e, tipo: "entrada" as const, descricao: `${e.paciente_nome} — ${procMap[e.procedimento_id] || "Procedimento"}`, categoria: e.forma_pagamento })),
+    ...entradas.map(e => ({ ...e, tipo: "entrada" as const, descricao: `${e.paciente_nome} — ${getEntradaProcNames(e.id)}`, categoria: e.forma_pagamento })),
     ...saidas.map(s => ({ ...s, tipo: "saida" as const, paciente_nome: "", procedimento_id: "" })),
   ].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
@@ -213,7 +256,9 @@ const Financeiro = () => {
     }
     if (filterPagamento && t.tipo === "saida") return false;
     if (filterProcedimento) {
-      if (t.tipo !== "entrada" || t.procedimento_id !== filterProcedimento) return false;
+      if (t.tipo !== "entrada") return false;
+      const procIds = getEntradaProcIds(t.id);
+      if (!procIds.includes(filterProcedimento)) return false;
     }
     if (filterPaciente) {
       if (t.tipo !== "entrada" || t.paciente_nome !== filterPaciente) return false;
@@ -223,7 +268,6 @@ const Financeiro = () => {
 
   const hasActiveFilters = filterTipo !== "todos" || filterBusca || filterDataInicio || filterDataFim || filterCategoria || filterPagamento || filterProcedimento || filterPaciente;
 
-  // Unique patient names from entradas for filter
   const uniquePacientes = [...new Set(entradas.map(e => e.paciente_nome))].sort();
 
   const inputCls = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
@@ -323,160 +367,133 @@ const Financeiro = () => {
         )}
 
         {/* Transactions list */}
-        <div className="bg-card rounded-2xl border border-border shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-display text-lg">Movimentações</h3>
-                <p className="text-xs text-muted-foreground font-body mt-0.5">
-                  {hasActiveFilters ? `${filteredTransactions.length} de ${allTransactions.length} movimentações` : "Todas as entradas e saídas registradas"}
-                </p>
-              </div>
-              {hasActiveFilters && (
-                <button onClick={() => { setFilterTipo("todos"); setFilterBusca(""); setFilterDataInicio(""); setFilterDataFim(""); setFilterCategoria(""); setFilterPagamento(""); setFilterProcedimento(""); setFilterPaciente(""); }}
-                  className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                  <X size={12} /> Limpar filtros
+        <div className="bg-card rounded-2xl border border-border shadow-card p-5">
+          <h3 className="font-display text-lg mb-1">Movimentações</h3>
+          <p className="text-xs text-muted-foreground font-body mb-4">Todas as entradas e saídas</p>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex rounded-lg overflow-hidden border border-border bg-muted p-0.5 gap-0.5">
+              {(["todos", "entrada", "saida"] as const).map(f => (
+                <button key={f} onClick={() => setFilterTipo(f)}
+                  className="px-3 py-1.5 text-xs font-body capitalize rounded-md transition-all"
+                  style={filterTipo === f ? { background: "hsl(var(--card))", color: "hsl(var(--primary))", fontWeight: 600, boxShadow: "var(--shadow-soft)" } : { color: "hsl(var(--muted-foreground))" }}>
+                  {f === "todos" ? "Todos" : f === "entrada" ? "Entradas" : "Saídas"}
                 </button>
-              )}
-            </div>
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[180px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={filterBusca}
-                  onChange={e => setFilterBusca(e.target.value)}
-                  placeholder="Buscar por nome ou descrição..."
-                  className="w-full rounded-lg border border-border bg-background pl-8 pr-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-                />
-              </div>
-              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
-                {([["todos", "Todos"], ["entrada", "Entradas"], ["saida", "Saídas"]] as const).map(([val, label]) => (
-                  <button key={val} onClick={() => setFilterTipo(val)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-body font-medium transition-all ${filterTipo === val ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
-                <span className="text-xs text-muted-foreground">a</span>
-                <input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
-              </div>
-              {/* Second row of filters */}
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <select value={filterProcedimento} onChange={e => setFilterProcedimento(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">Procedimento</option>
-                  {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
-                <select value={filterPaciente} onChange={e => setFilterPaciente(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">Paciente</option>
-                  {uniquePacientes.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <select value={filterPagamento} onChange={e => setFilterPagamento(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">Forma Pagamento</option>
-                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
-                </select>
-                <select value={filterCategoria} onChange={e => setFilterCategoria(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">Categoria Saída</option>
-                  {CATEGORIAS_SAIDA.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              {/* Subtotal bar */}
-              {hasActiveFilters && filteredTransactions.length > 0 && (
-                <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-border">
-                  <div className="flex items-center gap-1.5">
-                    <ArrowUpCircle size={13} className="text-primary" />
-                    <span className="text-xs font-body text-muted-foreground">Entradas:</span>
-                    <span className="text-xs font-body font-medium text-primary">
-                      {fmt(filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0))}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <ArrowDownCircle size={13} className="text-destructive" />
-                    <span className="text-xs font-body text-muted-foreground">Saídas:</span>
-                    <span className="text-xs font-body font-medium text-destructive">
-                      {fmt(filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0))}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <DollarSign size={13} className="text-foreground" />
-                    <span className="text-xs font-body text-muted-foreground">Saldo:</span>
-                    <span className="text-xs font-body font-medium">
-                      {fmt(
-                        filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0) -
-                        filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0)
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          {loading ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Carregando...</div>
-          ) : filteredTransactions.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">
-              {hasActiveFilters ? "Nenhuma movimentação encontrada com os filtros aplicados." : "Nenhuma movimentação registrada ainda."}
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {filteredTransactions.map((t) => (
-                <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors group cursor-pointer" onClick={() => setDetailTransaction(t)}>
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === "entrada" ? "bg-primary/10" : "bg-destructive/10"}`}>
-                      {t.tipo === "entrada" ? <ArrowUpCircle size={15} className="text-primary" /> : <ArrowDownCircle size={15} className="text-destructive" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-body font-medium truncate">{t.descricao}</p>
-                      <p className="text-xs text-muted-foreground font-body">{fmtDate(t.data)} · {t.categoria}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 ml-4">
-                    <p className={`text-sm font-body font-medium whitespace-nowrap ${t.tipo === "entrada" ? "text-primary" : "text-destructive"}`}>
-                      {t.tipo === "entrada" ? "+" : "−"} {fmt(Number(t.valor))}
-                    </p>
-                    <button onClick={(e) => { e.stopPropagation(); t.tipo === "entrada" ? handleDeleteEntrada(t.id) : handleDeleteSaida(t.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1" title="Excluir">
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
               ))}
             </div>
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input value={filterBusca} onChange={e => setFilterBusca(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-muted text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="Buscar..." />
+            </div>
+          </div>
+          {/* Advanced filters */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30" title="Data início" />
+            <input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30" title="Data fim" />
+            <select value={filterCategoria} onChange={e => setFilterCategoria(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">Categoria</option>
+              {CATEGORIAS_SAIDA.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={filterPagamento} onChange={e => setFilterPagamento(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">Pagamento</option>
+              {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <select value={filterProcedimento} onChange={e => setFilterProcedimento(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">Procedimento</option>
+              {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+            <select value={filterPaciente} onChange={e => setFilterPaciente(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-muted text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">Paciente</option>
+              {uniquePacientes.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {hasActiveFilters && (
+              <button onClick={() => { setFilterTipo("todos"); setFilterBusca(""); setFilterDataInicio(""); setFilterDataFim(""); setFilterCategoria(""); setFilterPagamento(""); setFilterProcedimento(""); setFilterPaciente(""); }}
+                className="px-3 py-1.5 rounded-lg text-xs font-body text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-1">
+                <X size={12} /> Limpar filtros
+              </button>
+            )}
+          </div>
+
+          {/* Subtotal bar */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-4 mb-4 p-3 rounded-xl bg-accent/50 border border-border">
+              <div className="flex items-center gap-2">
+                <ArrowUpCircle size={14} className="text-primary" />
+                <span className="text-xs font-body text-muted-foreground">Entradas:</span>
+                <span className="text-sm font-body font-medium text-primary">
+                  {fmt(filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0))}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ArrowDownCircle size={14} className="text-destructive" />
+                <span className="text-xs font-body text-muted-foreground">Saídas:</span>
+                <span className="text-sm font-body font-medium text-destructive">
+                  {fmt(filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0))}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <DollarSign size={14} className="text-foreground" />
+                <span className="text-xs font-body text-muted-foreground">Saldo:</span>
+                <span className="text-sm font-body font-medium">
+                  {fmt(
+                    filteredTransactions.filter(t => t.tipo === "entrada").reduce((s, t) => s + Number(t.valor), 0) -
+                    filteredTransactions.filter(t => t.tipo === "saida").reduce((s, t) => s + Number(t.valor), 0)
+                  )}
+                </span>
+              </div>
+            </div>
           )}
+
+          {/* Transaction rows */}
+          <div className="flex flex-col gap-2">
+            {filteredTransactions.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground font-body py-10">Nenhuma movimentação encontrada.</p>
+            )}
+            {filteredTransactions.map(t => (
+              <div key={t.id + t.tipo} onClick={() => setDetailTransaction(t)}
+                className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-muted/60 transition-all cursor-pointer group border border-transparent hover:border-border">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === "entrada" ? "bg-primary/10" : "bg-destructive/10"}`}>
+                  {t.tipo === "entrada" ? <ArrowUpCircle size={16} className="text-primary" /> : <ArrowDownCircle size={16} className="text-destructive" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-body font-medium truncate">{t.descricao}</p>
+                  <p className="text-xs text-muted-foreground font-body">{t.categoria} · {fmtDate(t.data)}</p>
+                </div>
+                <span className={`text-sm font-body font-semibold flex-shrink-0 ${t.tipo === "entrada" ? "text-primary" : "text-destructive"}`}>
+                  {t.tipo === "entrada" ? "+" : "−"} {fmt(Number(t.valor))}
+                </span>
+                <button onClick={e => { e.stopPropagation(); t.tipo === "entrada" ? handleDeleteEntrada(t.id) : handleDeleteSaida(t.id); }}
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all p-1">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
         </>)}
 
-        {/* Preços Tab */}
+        {/* Preços tab */}
         {activeTab === "precos" && (
-          <div className="bg-card rounded-2xl border border-border shadow-card overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="font-display text-lg">Preços de Referência</h3>
-              <p className="text-xs text-muted-foreground font-body mt-0.5">Valores para consulta rápida — não são aplicados automaticamente</p>
-            </div>
-            {loading ? (
-              <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Carregando...</div>
-            ) : procedimentos.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Nenhum procedimento cadastrado.</div>
+          <div className="bg-card rounded-2xl border border-border shadow-card p-6">
+            <h3 className="font-display text-lg mb-1">Tabela de Preços e Referências</h3>
+            <p className="text-xs text-muted-foreground font-body mb-5">Gerencie preços de referência, durações padrão e intervalos de retorno</p>
+            {procedimentos.length === 0 ? (
+              <p className="text-sm text-muted-foreground font-body text-center py-10">Nenhum procedimento cadastrado.</p>
             ) : (
-              <div className="divide-y divide-border">
-                {procedimentos.map((proc) => (
-                  <div key={proc.id} className="flex items-center justify-between px-5 py-4 hover:bg-muted/40 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Tag size={15} className="text-primary" />
-                      </div>
-                      <span className="text-sm font-body font-medium">{proc.nome}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3">
+                {procedimentos.map(proc => (
+                  <div key={proc.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+                    <p className="font-body font-medium text-sm">{proc.nome}</p>
+                    <div className="flex items-center gap-3 flex-wrap">
                       {/* Preço */}
                       <div className="flex items-center gap-1">
                         {editingPreco === proc.id ? (
@@ -542,7 +559,7 @@ const Financeiro = () => {
       {/* Modal: Nova Entrada */}
       {showEntradaModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowEntradaModal(false)}>
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="font-display text-xl">Nova Entrada</h2>
@@ -573,16 +590,27 @@ const Financeiro = () => {
                 )}
               </div>
               <div>
-                <label className={labelCls}>Procedimento *</label>
-                <select value={eProcedimento} onChange={e => {
-                  const procId = e.target.value;
-                  setEProcedimento(procId);
-                  const proc = procedimentos.find(p => p.id === procId);
-                  if (proc?.preco != null) setEValor(String(proc.preco));
-                }} className={inputCls}>
-                  <option value="">Selecione...</option>
-                  {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+                <label className={labelCls}>Procedimento(s) *</label>
+                <div className="max-h-36 overflow-y-auto rounded-xl border border-border bg-muted p-1.5 flex flex-col gap-0.5">
+                  {procedimentos.map(p => (
+                    <label key={p.id} className={`flex items-center gap-2 text-sm font-body cursor-pointer px-2 py-1.5 rounded-md transition-colors ${eProcedimentos.includes(p.id) ? "bg-accent text-primary font-medium" : "hover:bg-accent/50"}`}>
+                      <input type="checkbox" checked={eProcedimentos.includes(p.id)}
+                        onChange={e => {
+                          const newIds = e.target.checked
+                            ? [...eProcedimentos, p.id]
+                            : eProcedimentos.filter(id => id !== p.id);
+                          setEProcedimentos(newIds);
+                          setEValor(recalcEntradaValor(newIds));
+                        }}
+                        className="rounded border-border accent-primary" />
+                      {p.nome}
+                      {p.preco != null && <span className="text-[11px] text-muted-foreground ml-auto">{fmt(Number(p.preco))}</span>}
+                    </label>
+                  ))}
+                </div>
+                {eProcedimentos.length > 0 && (
+                  <p className="text-[11px] text-primary font-body mt-1">✓ {eProcedimentos.length} procedimento(s)</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -693,8 +721,8 @@ const Financeiro = () => {
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
                       <Tag size={16} className="text-muted-foreground flex-shrink-0" />
                       <div>
-                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Procedimento</p>
-                        <p className="text-sm font-body font-medium">{procMap[entrada.procedimento_id] || "—"}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Procedimento(s)</p>
+                        <p className="text-sm font-body font-medium">{getEntradaProcNames(entrada.id)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">

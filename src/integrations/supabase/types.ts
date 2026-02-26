@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      agendamento_procedimentos: {
+        Row: {
+          agendamento_id: string
+          created_at: string
+          id: string
+          procedimento_id: string
+        }
+        Insert: {
+          agendamento_id: string
+          created_at?: string
+          id?: string
+          procedimento_id: string
+        }
+        Update: {
+          agendamento_id?: string
+          created_at?: string
+          id?: string
+          procedimento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agendamento_procedimentos_agendamento_id_fkey"
+            columns: ["agendamento_id"]
+            isOneToOne: false
+            referencedRelation: "agendamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agendamento_procedimentos_procedimento_id_fkey"
+            columns: ["procedimento_id"]
+            isOneToOne: false
+            referencedRelation: "procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agendamentos: {
         Row: {
           created_at: string
@@ -23,7 +59,7 @@ export type Database = {
           id: string
           observacoes: string | null
           paciente_nome: string
-          procedimento_id: string
+          procedimento_id: string | null
         }
         Insert: {
           created_at?: string
@@ -33,7 +69,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           paciente_nome: string
-          procedimento_id: string
+          procedimento_id?: string | null
         }
         Update: {
           created_at?: string
@@ -43,7 +79,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           paciente_nome?: string
-          procedimento_id?: string
+          procedimento_id?: string | null
         }
         Relationships: [
           {
@@ -79,6 +115,42 @@ export type Database = {
         }
         Relationships: []
       }
+      entrada_procedimentos: {
+        Row: {
+          created_at: string
+          entrada_id: string
+          id: string
+          procedimento_id: string
+        }
+        Insert: {
+          created_at?: string
+          entrada_id: string
+          id?: string
+          procedimento_id: string
+        }
+        Update: {
+          created_at?: string
+          entrada_id?: string
+          id?: string
+          procedimento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entrada_procedimentos_entrada_id_fkey"
+            columns: ["entrada_id"]
+            isOneToOne: false
+            referencedRelation: "entradas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entrada_procedimentos_procedimento_id_fkey"
+            columns: ["procedimento_id"]
+            isOneToOne: false
+            referencedRelation: "procedimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entradas: {
         Row: {
           created_at: string
@@ -87,7 +159,7 @@ export type Database = {
           id: string
           observacoes: string | null
           paciente_nome: string
-          procedimento_id: string
+          procedimento_id: string | null
           valor: number
         }
         Insert: {
@@ -97,7 +169,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           paciente_nome: string
-          procedimento_id: string
+          procedimento_id?: string | null
           valor: number
         }
         Update: {
@@ -107,7 +179,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           paciente_nome?: string
-          procedimento_id?: string
+          procedimento_id?: string | null
           valor?: number
         }
         Relationships: [
