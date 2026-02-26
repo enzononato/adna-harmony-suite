@@ -78,6 +78,7 @@ const Pacientes = () => {
   const [showNewSessao, setShowNewSessao] = useState<string | null>(null); // planejamento_id
   const [sessaoData, setSessaoData] = useState(new Date().toISOString().slice(0, 10));
   const [sessaoNotas, setSessaoNotas] = useState("");
+  const [confirmDeleteTratId, setConfirmDeleteTratId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -189,10 +190,38 @@ const Pacientes = () => {
     fetchData();
   };
 
+
+
   const handleDeleteTreatment = async (id: string) => {
-    const { error } = await supabase.from("tratamentos").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir."); return; }
+    setConfirmDeleteTratId(id);
+  };
+
+  const executeDeleteTreatment = async () => {
+    if (!confirmDeleteTratId) return;
+    const trat = tratamentos.find(t => t.id === confirmDeleteTratId);
+    const { error } = await supabase.from("tratamentos").delete().eq("id", confirmDeleteTratId);
+    if (error) { toast.error("Erro ao excluir."); setConfirmDeleteTratId(null); return; }
+
+    // Also delete matching agendamento if exists
+    if (trat) {
+      const paciente = pacientes.find(p => p.id === trat.paciente_id);
+      if (paciente) {
+        // Find agendamento by patient name, procedure name, and date
+        const { data: matchingAppts } = await supabase.from("agendamentos")
+          .select("id, procedimento_id, procedimentos(nome)")
+          .eq("paciente_nome", paciente.nome)
+          .eq("data", trat.data);
+        if (matchingAppts) {
+          const match = matchingAppts.find((a: any) => a.procedimentos?.nome === trat.procedimento);
+          if (match) {
+            await supabase.from("agendamentos").delete().eq("id", match.id);
+          }
+        }
+      }
+    }
+
     toast.success("Tratamento excluído.");
+    setConfirmDeleteTratId(null);
     fetchData();
   };
 
@@ -739,6 +768,31 @@ const Pacientes = () => {
               <div><label className={labelCls}>Notas / Observações</label><textarea value={sessaoNotas} onChange={e => setSessaoNotas(e.target.value)} className={inputCls + " resize-none h-20"} placeholder="Observações desta sessão..." /></div>
               <button onClick={handleNewSessao} className="w-full bg-primary text-primary-foreground py-2.5 rounded-xl font-body font-medium text-sm hover:opacity-90 transition-opacity">
                 Registrar Sessão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation delete treatment dialog */}
+      {confirmDeleteTratId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDeleteTratId(null)}>
+          <div className="bg-card rounded-2xl border border-border shadow-card p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Trash2 size={20} className="text-destructive" />
+              </div>
+              <h3 className="font-display text-lg">Excluir do histórico?</h3>
+            </div>
+            <p className="text-sm text-muted-foreground font-body mb-5">
+              O tratamento será excluído do histórico e também removido da agenda, caso exista um agendamento correspondente.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDeleteTratId(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">
+                Não
+              </button>
+              <button onClick={executeDeleteTreatment} className="flex-1 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-body font-medium hover:opacity-90 transition-opacity">
+                Sim, excluir
               </button>
             </div>
           </div>
