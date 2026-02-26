@@ -413,13 +413,27 @@ const Financeiro = () => {
               </div>
               <button onClick={() => setShowEntradaModal(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
             </div>
-            <div className="space-y-4">
-              <div>
+             <div className="space-y-4">
+              <div className="relative">
                 <label className={labelCls}>Paciente *</label>
-                <select value={ePaciente} onChange={e => setEPaciente(e.target.value)} className={inputCls}>
-                  <option value="">Selecione...</option>
-                  {pacientes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                </select>
+                <input
+                  type="text"
+                  value={ePaciente}
+                  onChange={e => setEPaciente(e.target.value)}
+                  className={inputCls}
+                  placeholder="Digite o nome..."
+                  autoComplete="off"
+                />
+                {ePaciente.length >= 2 && pacientes.filter(p => p.nome.toLowerCase().includes(ePaciente.toLowerCase()) && p.nome !== ePaciente).length > 0 && (
+                  <div className="absolute z-10 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                    {pacientes.filter(p => p.nome.toLowerCase().includes(ePaciente.toLowerCase()) && p.nome !== ePaciente).map(p => (
+                      <button key={p.id} type="button" onClick={() => setEPaciente(p.nome)}
+                        className="w-full text-left px-3 py-2 text-sm font-body hover:bg-muted/60 transition-colors first:rounded-t-xl last:rounded-b-xl">
+                        {p.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className={labelCls}>Procedimento *</label>
