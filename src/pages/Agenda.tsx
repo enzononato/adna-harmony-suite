@@ -174,6 +174,7 @@ const Agenda = () => {
     if (!newPaciente.trim()) { toast.error("Informe o nome do paciente."); return; }
     if (!newProcedimentoId) { toast.error("Selecione um procedimento."); return; }
     if (!newHorario) { toast.error("Informe o horário."); return; }
+    if (!newDuracao || parseInt(newDuracao) <= 0) { toast.error("Informe a duração do procedimento."); return; }
 
     const dur = newDuracao ? parseInt(newDuracao) : null;
     if (checkOverlap(newData, newHorario, dur)) {
@@ -311,6 +312,10 @@ const Agenda = () => {
   const handleUpdate = async () => {
     if (!editingId || !editPaciente || !editProcedimentoId || !editHorario) {
       toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (!editDuracao || parseInt(editDuracao) <= 0) {
+      toast.error("Informe a duração do procedimento.");
       return;
     }
     const dur = editDuracao ? parseInt(editDuracao) : null;
