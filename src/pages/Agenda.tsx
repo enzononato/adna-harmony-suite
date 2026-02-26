@@ -123,6 +123,29 @@ const Agenda = () => {
       .map(a => new Date(a.data + "T00:00:00").getDate())
   );
 
+  const checkOverlap = (data: string, horario: string, duracao: number | null, excludeId?: string): boolean => {
+    const newStart = toMinutes(horario);
+    const newEnd = newStart + (duracao || 0);
+    const sameDayAppts = agendamentos.filter(a => a.data === data && a.id !== excludeId);
+    for (const a of sameDayAppts) {
+      const aStart = toMinutes(a.horario);
+      const aEnd = aStart + (a.duracao_minutos || 0);
+      // Se ambos têm duração, checar sobreposição de intervalos
+      // Se algum não tem duração, checar apenas horário exato igual
+      if (duracao && a.duracao_minutos) {
+        if (newStart < aEnd && newEnd > aStart) return true;
+      } else {
+        if (newStart === aStart) return true;
+      }
+    }
+    return false;
+  };
+
+  const toMinutes = (time: string) => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  };
+
   const handleSave = async () => {
     if (!newPaciente) { toast.error("Selecione um paciente cadastrado."); return; }
     if (!newProcedimentoId) { toast.error("Selecione um procedimento."); return; }
@@ -131,13 +154,19 @@ const Agenda = () => {
     const paciente = pacientes.find(p => p.nome === newPaciente);
     if (!paciente) { toast.error("Paciente não cadastrado. Cadastre primeiro na aba Pacientes."); return; }
 
+    const dur = newDuracao ? parseInt(newDuracao) : null;
+    if (checkOverlap(newData, newHorario, dur)) {
+      toast.error("Já existe um agendamento nesse horário. Escolha outro horário.");
+      return;
+    }
+
     const { error } = await supabase.from("agendamentos").insert({
       paciente_nome: newPaciente.trim(),
       procedimento_id: newProcedimentoId,
       data: newData,
       horario: newHorario,
       observacoes: newObs.trim() || null,
-      duracao_minutos: newDuracao ? parseInt(newDuracao) : null,
+      duracao_minutos: dur,
     } as any);
     if (error) { toast.error("Erro ao salvar agendamento."); return; }
     toast.success("Agendamento salvo!");
@@ -169,6 +198,11 @@ const Agenda = () => {
   const handleUpdate = async () => {
     if (!editingId || !editPaciente || !editProcedimentoId || !editHorario) {
       toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    const dur = editDuracao ? parseInt(editDuracao) : null;
+    if (checkOverlap(editData, editHorario, dur, editingId)) {
+      toast.error("Já existe um agendamento nesse horário. Escolha outro horário.");
       return;
     }
     const { error } = await supabase.from("agendamentos").update({
