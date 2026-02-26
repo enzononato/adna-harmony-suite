@@ -55,6 +55,30 @@ export type Database = {
           },
         ]
       }
+      avisos: {
+        Row: {
+          concluido: boolean
+          created_at: string
+          data: string
+          id: string
+          texto: string
+        }
+        Insert: {
+          concluido?: boolean
+          created_at?: string
+          data?: string
+          id?: string
+          texto: string
+        }
+        Update: {
+          concluido?: boolean
+          created_at?: string
+          data?: string
+          id?: string
+          texto?: string
+        }
+        Relationships: []
+      }
       entradas: {
         Row: {
           created_at: string
