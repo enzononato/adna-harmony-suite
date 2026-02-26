@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ const Agenda = () => {
   const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
   const [showCadastrarModal, setShowCadastrarModal] = useState(false);
   const [nomePendenteCadastro, setNomePendenteCadastro] = useState("");
+  const [detailAppt, setDetailAppt] = useState<Agendamento | null>(null);
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -581,7 +582,7 @@ const Agenda = () => {
                   const dividerColor = isRetorno ? "bg-blue-500/30" : isConfirmado ? "bg-green-500/30" : "bg-primary/30";
 
                   return (
-                    <div key={a.id} className={`flex flex-col gap-2 p-3 rounded-xl group ${cardClass}`}>
+                    <div key={a.id} className={`flex flex-col gap-2 p-3 rounded-xl group cursor-pointer ${cardClass}`} onClick={() => setDetailAppt(a)}>
                       <div className="flex gap-3">
                         <div className="flex flex-col items-center gap-1 min-w-[36px]">
                           {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
@@ -615,20 +616,20 @@ const Agenda = () => {
                           )}
                         </div>
                         <div className={`flex gap-1 self-start ${!isRetorno && !isConfirmado ? "opacity-0 group-hover:opacity-100" : ""} transition-all`}>
-                          <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
+                          <button onClick={(e) => { e.stopPropagation(); startEdit(a); }} className="text-muted-foreground hover:text-primary p-1" title="Editar">
                             <Pencil size={13} />
                           </button>
-                          <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
                             <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
                       {isRetorno && (
                         <div className="flex gap-1.5 ml-[45px]">
-                          <button onClick={() => handleConfirmRetorno(a)} className="flex items-center gap-1 text-xs font-body text-green-600 hover:text-green-700 hover:bg-green-100 px-2 py-1 rounded transition-colors" title="Confirmar retorno">
+                          <button onClick={(e) => { e.stopPropagation(); handleConfirmRetorno(a); }} className="flex items-center gap-1 text-xs font-body text-green-600 hover:text-green-700 hover:bg-green-100 px-2 py-1 rounded transition-colors" title="Confirmar retorno">
                             <Check size={13} strokeWidth={2.5} /> Confirmar
                           </button>
-                          <button onClick={() => handleRejectRetorno(a.id)} className="flex items-center gap-1 text-xs font-body text-destructive hover:bg-destructive/10 px-2 py-1 rounded transition-colors" title="Cancelar retorno">
+                          <button onClick={(e) => { e.stopPropagation(); handleRejectRetorno(a.id); }} className="flex items-center gap-1 text-xs font-body text-destructive hover:bg-destructive/10 px-2 py-1 rounded transition-colors" title="Cancelar retorno">
                             <X size={13} strokeWidth={2.5} /> Cancelar
                           </button>
                         </div>
@@ -829,6 +830,90 @@ const Agenda = () => {
               <button onClick={() => { setShowCadastrarModal(false); setNomePendenteCadastro(""); }} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Não</button>
               <button onClick={handleCadastrarPaciente} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
                 Sim, cadastrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail popup for appointment */}
+      {detailAppt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setDetailAppt(null)} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-card w-full max-w-md p-6">
+            <div className="h-0.5 w-full rounded-full mb-5" style={{ background: isRetornoAuto(detailAppt) ? "hsl(217 91% 60%)" : isRetornoConfirmado(detailAppt) ? "hsl(142 71% 45%)" : "var(--gradient-gold)" }} />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-xl">Detalhes do Agendamento</h3>
+              <button onClick={() => setDetailAppt(null)} className="text-muted-foreground hover:text-foreground p-1"><X size={18} /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                <User size={16} className="text-primary flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Paciente</p>
+                  <p className="text-sm font-body font-medium">{detailAppt.paciente_nome}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                <Tag size={16} className="text-primary flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Procedimento</p>
+                  <p className="text-sm font-body font-medium">{detailAppt.procedimentos?.nome || "—"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                  <CalendarIcon />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Data</p>
+                    <p className="text-sm font-body font-medium">{new Date(detailAppt.data + "T00:00:00").toLocaleDateString("pt-BR")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                  <Clock size={16} className="text-primary flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Horário</p>
+                    <p className="text-sm font-body font-medium">
+                      {detailAppt.horario.slice(0, 5)}
+                      {detailAppt.duracao_minutos ? (() => {
+                        const [h, m] = detailAppt.horario.split(":").map(Number);
+                        const end = new Date(2000, 0, 1, h, m + detailAppt.duracao_minutos);
+                        return ` — ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+                      })() : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {detailAppt.duracao_minutos && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                  <Clock size={16} className="text-muted-foreground flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Duração</p>
+                    <p className="text-sm font-body font-medium">{detailAppt.duracao_minutos} minutos</p>
+                  </div>
+                </div>
+              )}
+              {detailAppt.observacoes && (
+                <div className="p-3 rounded-xl bg-accent/50">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body mb-1">Observações</p>
+                  <p className="text-sm font-body">{detailAppt.observacoes}</p>
+                </div>
+              )}
+              {isRetornoAuto(detailAppt) && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-blue-500/15 text-blue-600 w-fit">
+                  <RotateCcw size={12} /> Retorno automático
+                </span>
+              )}
+              {isRetornoConfirmado(detailAppt) && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-green-500/15 text-green-700 w-fit">
+                  <Check size={12} /> Retorno confirmado
+                </span>
+              )}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setDetailAppt(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Fechar</button>
+              <button onClick={() => { startEdit(detailAppt); setDetailAppt(null); }} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
+                Editar
               </button>
             </div>
           </div>

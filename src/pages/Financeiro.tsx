@@ -74,6 +74,7 @@ const Financeiro = () => {
   const [filterPagamento, setFilterPagamento] = useState("");
   const [filterProcedimento, setFilterProcedimento] = useState("");
   const [filterPaciente, setFilterPaciente] = useState("");
+  const [detailTransaction, setDetailTransaction] = useState<any | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -428,7 +429,7 @@ const Financeiro = () => {
           ) : (
             <div className="divide-y divide-border">
               {filteredTransactions.map((t) => (
-                <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors group">
+                <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors group cursor-pointer" onClick={() => setDetailTransaction(t)}>
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === "entrada" ? "bg-primary/10" : "bg-destructive/10"}`}>
                       {t.tipo === "entrada" ? <ArrowUpCircle size={15} className="text-primary" /> : <ArrowDownCircle size={15} className="text-destructive" />}
@@ -442,7 +443,7 @@ const Financeiro = () => {
                     <p className={`text-sm font-body font-medium whitespace-nowrap ${t.tipo === "entrada" ? "text-primary" : "text-destructive"}`}>
                       {t.tipo === "entrada" ? "+" : "−"} {fmt(Number(t.valor))}
                     </p>
-                    <button onClick={() => t.tipo === "entrada" ? handleDeleteEntrada(t.id) : handleDeleteSaida(t.id)}
+                    <button onClick={(e) => { e.stopPropagation(); t.tipo === "entrada" ? handleDeleteEntrada(t.id) : handleDeleteSaida(t.id); }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1" title="Excluir">
                       <X size={14} />
                     </button>
@@ -654,6 +655,99 @@ const Financeiro = () => {
           </div>
         </div>
       )}
+
+      {/* Detail popup for transaction */}
+      {detailTransaction && (() => {
+        const t = detailTransaction;
+        const isEntrada = t.tipo === "entrada";
+        const entrada = isEntrada ? entradas.find(e => e.id === t.id) : null;
+        const saida = !isEntrada ? saidas.find(s => s.id === t.id) : null;
+        return (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDetailTransaction(null)}>
+            <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+              <div className={`h-0.5 w-full rounded-full mb-5 ${isEntrada ? "bg-primary" : "bg-destructive"}`} />
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display text-xl">{isEntrada ? "Detalhes da Entrada" : "Detalhes da Saída"}</h3>
+                <button onClick={() => setDetailTransaction(null)} className="text-muted-foreground hover:text-foreground p-1"><X size={18} /></button>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className={`flex items-center gap-3 p-3 rounded-xl ${isEntrada ? "bg-primary/10" : "bg-destructive/10"}`}>
+                  {isEntrada ? <ArrowUpCircle size={20} className="text-primary" /> : <ArrowDownCircle size={20} className="text-destructive" />}
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Valor</p>
+                    <p className={`text-lg font-display font-medium ${isEntrada ? "text-primary" : "text-destructive"}`}>
+                      {isEntrada ? "+" : "−"} {fmt(Number(t.valor))}
+                    </p>
+                  </div>
+                </div>
+
+                {isEntrada && entrada && (
+                  <>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                      <CreditCard size={16} className="text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Paciente</p>
+                        <p className="text-sm font-body font-medium">{entrada.paciente_nome}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                      <Tag size={16} className="text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Procedimento</p>
+                        <p className="text-sm font-body font-medium">{procMap[entrada.procedimento_id] || "—"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                      <CreditCard size={16} className="text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Forma de Pagamento</p>
+                        <p className="text-sm font-body font-medium">{entrada.forma_pagamento}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {!isEntrada && saida && (
+                  <>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                      <Tag size={16} className="text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Descrição</p>
+                        <p className="text-sm font-body font-medium">{saida.descricao}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                      <Filter size={16} className="text-muted-foreground flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Categoria</p>
+                        <p className="text-sm font-body font-medium">{saida.categoria}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-accent/50">
+                  <Clock size={16} className="text-muted-foreground flex-shrink-0" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body">Data</p>
+                    <p className="text-sm font-body font-medium">{fmtDate(t.data)}</p>
+                  </div>
+                </div>
+
+                {((isEntrada && entrada?.observacoes) || (!isEntrada && saida?.observacoes)) && (
+                  <div className="p-3 rounded-xl bg-accent/50">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-body mb-1">Observações</p>
+                    <p className="text-sm font-body">{isEntrada ? entrada?.observacoes : saida?.observacoes}</p>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setDetailTransaction(null)} className="w-full mt-5 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">
+                Fechar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </AppLayout>
   );
 };
