@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -225,6 +225,56 @@ const Agenda = () => {
     fetchData();
   };
 
+  const isRetornoAuto = (a: Agendamento) => a.observacoes === "Retorno automático";
+
+  const handleConfirmRetorno = async (a: Agendamento) => {
+    // Mark this return as confirmed (remove the "Retorno automático" tag)
+    const { error } = await supabase.from("agendamentos").update({
+      observacoes: "Retorno confirmado",
+    } as any).eq("id", a.id);
+    if (error) { toast.error("Erro ao confirmar retorno."); return; }
+    toast.success("Retorno confirmado!");
+
+    // Schedule next automatic return based on procedure's dias_retorno
+    const proc = procedimentos.find(p => p.id === a.procedimento_id);
+    if (proc?.dias_retorno) {
+      const retornoDate = new Date(a.data + "T00:00:00");
+      retornoDate.setDate(retornoDate.getDate() + proc.dias_retorno);
+      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
+      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
+
+      const { error: retErr } = await supabase.from("agendamentos").insert({
+        paciente_nome: a.paciente_nome,
+        procedimento_id: a.procedimento_id,
+        data: retornoDateStr,
+        horario: a.horario,
+        observacoes: "Retorno automático",
+        duracao_minutos: a.duracao_minutos,
+      } as any);
+
+      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
+      if (retErr) {
+        toast.error(`Erro ao criar próximo retorno para ${retornoFormatted}.`);
+      } else {
+        const hasConflict = checkOverlap(retornoDateStr, a.horario, a.duracao_minutos);
+        if (hasConflict) {
+          toast.warning(`Próximo retorno agendado para ${retornoFormatted}, mas há conflito de horário.`);
+        } else {
+          toast.success(`Próximo retorno agendado para ${retornoFormatted}.`);
+        }
+      }
+    }
+    fetchData();
+  };
+
+  const handleRejectRetorno = async (id: string) => {
+    if (!confirm("Cancelar este retorno automático?")) return;
+    const { error } = await supabase.from("agendamentos").delete().eq("id", id);
+    if (error) { toast.error("Erro ao cancelar retorno."); return; }
+    toast.success("Retorno cancelado.");
+    fetchData();
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este agendamento?")) return;
     const { error } = await supabase.from("agendamentos").delete().eq("id", id);
@@ -255,6 +305,10 @@ const Agenda = () => {
       toast.error("Já existe um agendamento nesse horário. Escolha outro horário.");
       return;
     }
+
+    // Get the original appointment to detect changes
+    const original = agendamentos.find(a => a.id === editingId);
+
     const { error } = await supabase.from("agendamentos").update({
       paciente_nome: editPaciente.trim(),
       procedimento_id: editProcedimentoId,
@@ -265,6 +319,45 @@ const Agenda = () => {
     } as any).eq("id", editingId);
     if (error) { toast.error("Erro ao atualizar."); return; }
     toast.success("Agendamento atualizado!");
+
+    // Propagate changes to linked auto-return appointments
+    if (original) {
+      const linkedReturns = agendamentos.filter(a =>
+        a.id !== editingId &&
+        a.observacoes === "Retorno automático" &&
+        a.paciente_nome === original.paciente_nome &&
+        a.procedimento_id === original.procedimento_id &&
+        a.data > original.data
+      );
+
+      for (const ret of linkedReturns) {
+        const updatePayload: any = {};
+        if (editPaciente.trim() !== original.paciente_nome) updatePayload.paciente_nome = editPaciente.trim();
+        if (editProcedimentoId !== original.procedimento_id) updatePayload.procedimento_id = editProcedimentoId;
+        if (editHorario !== original.horario) updatePayload.horario = editHorario;
+        if (dur !== original.duracao_minutos) updatePayload.duracao_minutos = dur;
+
+        // If date changed, recalculate return date
+        if (editData !== original.data) {
+          const proc = procedimentos.find(p => p.id === editProcedimentoId);
+          if (proc?.dias_retorno) {
+            const retornoDate = new Date(editData + "T00:00:00");
+            retornoDate.setDate(retornoDate.getDate() + proc.dias_retorno);
+            if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
+            updatePayload.data = retornoDate.toISOString().slice(0, 10);
+          }
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          await supabase.from("agendamentos").update(updatePayload).eq("id", ret.id);
+        }
+      }
+
+      if (linkedReturns.length > 0) {
+        toast.info("Retorno(s) automático(s) atualizado(s) também.");
+      }
+    }
+
     setEditingId(null);
     fetchData();
   };
@@ -427,37 +520,58 @@ const Agenda = () => {
                   </div>
                 ))}
                 {/* Agendamentos */}
-                {dayAppointments.map(a => (
-                  <div key={a.id} className="flex gap-3 p-3 rounded-xl bg-accent/40 group">
-                    <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                      <Clock size={12} className="text-primary" />
-                      <span className="text-xs font-body font-medium text-primary">
-                        {a.horario.slice(0, 5)}
-                        {a.duracao_minutos ? (() => {
-                          const [h, m] = a.horario.split(":").map(Number);
-                          const end = new Date(2000, 0, 1, h, m + a.duracao_minutos);
-                          return ` - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
-                        })() : ""}
-                      </span>
-                    </div>
-                    <div className="h-full w-px bg-primary/30" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <User size={11} className="text-muted-foreground flex-shrink-0" />
-                        <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
+                {dayAppointments.map(a => {
+                  const isRetorno = isRetornoAuto(a);
+                  return (
+                    <div key={a.id} className={`flex gap-3 p-3 rounded-xl group ${isRetorno ? "bg-blue-500/10 border border-blue-500/30" : "bg-accent/40"}`}>
+                      <div className="flex flex-col items-center gap-1 min-w-[36px]">
+                        {isRetorno ? <RotateCcw size={12} className="text-blue-500" /> : <Clock size={12} className="text-primary" />}
+                        <span className={`text-xs font-body font-medium ${isRetorno ? "text-blue-500" : "text-primary"}`}>
+                          {a.horario.slice(0, 5)}
+                          {a.duracao_minutos ? (() => {
+                            const [h, m] = a.horario.split(":").map(Number);
+                            const end = new Date(2000, 0, 1, h, m + a.duracao_minutos);
+                            return ` - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+                          })() : ""}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
+                      <div className={`h-full w-px ${isRetorno ? "bg-blue-500/30" : "bg-primary/30"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <User size={11} className="text-muted-foreground flex-shrink-0" />
+                          <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground font-body">{a.procedimentos?.nome || "—"}</p>
+                        {isRetorno && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
+                            <RotateCcw size={9} /> Retorno automático
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1 self-start">
+                        {isRetorno ? (
+                          <>
+                            <button onClick={() => handleConfirmRetorno(a)} className="text-green-600 hover:text-green-700 hover:bg-green-100 p-1 rounded transition-colors" title="Confirmar retorno">
+                              <Check size={15} strokeWidth={2.5} />
+                            </button>
+                            <button onClick={() => handleRejectRetorno(a.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10 p-1 rounded transition-colors" title="Cancelar retorno">
+                              <X size={15} strokeWidth={2.5} />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all self-start">
-                      <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
