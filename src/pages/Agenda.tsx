@@ -549,7 +549,7 @@ const Agenda = () => {
                         )}
                       </div>
                       <div className="flex gap-1 self-start">
-                        {isRetorno ? (
+                        {isRetorno && (
                           <>
                             <button onClick={() => handleConfirmRetorno(a)} className="text-green-600 hover:text-green-700 hover:bg-green-100 p-1 rounded transition-colors" title="Confirmar retorno">
                               <Check size={15} strokeWidth={2.5} />
@@ -558,16 +558,15 @@ const Agenda = () => {
                               <X size={15} strokeWidth={2.5} />
                             </button>
                           </>
-                        ) : (
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
                         )}
+                        <div className={`flex gap-1 ${isRetorno ? "" : "opacity-0 group-hover:opacity-100"} transition-all`}>
+                          <button onClick={() => startEdit(a)} className="text-muted-foreground hover:text-primary p-1" title="Editar">
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(a.id)} className="text-muted-foreground hover:text-destructive p-1" title="Excluir">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
