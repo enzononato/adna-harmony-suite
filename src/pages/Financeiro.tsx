@@ -134,6 +134,10 @@ const Financeiro = () => {
     const valor = duracaoValue ? parseInt(duracaoValue) : null;
     const { error } = await supabase.from("procedimentos").update({ duracao_minutos: valor } as any).eq("id", procId);
     if (error) { toast.error("Erro ao salvar duração."); return; }
+    // Atualizar agendamentos existentes que não têm duração definida
+    if (valor != null) {
+      await supabase.from("agendamentos").update({ duracao_minutos: valor } as any).eq("procedimento_id", procId).is("duracao_minutos", null);
+    }
     toast.success("Duração atualizada!");
     setEditingDuracao(null);
     setDuracaoValue("");
