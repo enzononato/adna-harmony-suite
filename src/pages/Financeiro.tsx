@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, DollarSign, CreditCard, CheckCircle, Clock, X
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import ProcedimentoMultiSelect from "@/components/ProcedimentoMultiSelect";
 
 // Types
 type Procedimento = { id: string; nome: string; preco: number | null; duracao_minutos: number | null; dias_retorno: number | null };
@@ -589,29 +590,12 @@ const Financeiro = () => {
                   </div>
                 )}
               </div>
-              <div>
-                <label className={labelCls}>Procedimento(s) *</label>
-                <div className="max-h-36 overflow-y-auto rounded-xl border border-border bg-muted p-1.5 flex flex-col gap-0.5">
-                  {procedimentos.map(p => (
-                    <label key={p.id} className={`flex items-center gap-2 text-sm font-body cursor-pointer px-2 py-1.5 rounded-md transition-colors ${eProcedimentos.includes(p.id) ? "bg-accent text-primary font-medium" : "hover:bg-accent/50"}`}>
-                      <input type="checkbox" checked={eProcedimentos.includes(p.id)}
-                        onChange={e => {
-                          const newIds = e.target.checked
-                            ? [...eProcedimentos, p.id]
-                            : eProcedimentos.filter(id => id !== p.id);
-                          setEProcedimentos(newIds);
-                          setEValor(recalcEntradaValor(newIds));
-                        }}
-                        className="rounded border-border accent-primary" />
-                      {p.nome}
-                      {p.preco != null && <span className="text-[11px] text-muted-foreground ml-auto">{fmt(Number(p.preco))}</span>}
-                    </label>
-                  ))}
-                </div>
-                {eProcedimentos.length > 0 && (
-                  <p className="text-[11px] text-primary font-body mt-1">✓ {eProcedimentos.length} procedimento(s)</p>
-                )}
-              </div>
+              <ProcedimentoMultiSelect
+                procedimentos={procedimentos}
+                selectedIds={eProcedimentos}
+                onChange={(ids) => { setEProcedimentos(ids); setEValor(recalcEntradaValor(ids)); }}
+                showPreco
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Valor (R$) *</label>
