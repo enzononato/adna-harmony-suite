@@ -70,6 +70,10 @@ const Financeiro = () => {
   const [filterBusca, setFilterBusca] = useState("");
   const [filterDataInicio, setFilterDataInicio] = useState("");
   const [filterDataFim, setFilterDataFim] = useState("");
+  const [filterCategoria, setFilterCategoria] = useState("");
+  const [filterPagamento, setFilterPagamento] = useState("");
+  const [filterProcedimento, setFilterProcedimento] = useState("");
+  const [filterPaciente, setFilterPaciente] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -198,10 +202,28 @@ const Financeiro = () => {
     }
     if (filterDataInicio && t.data < filterDataInicio) return false;
     if (filterDataFim && t.data > filterDataFim) return false;
+    if (filterCategoria && t.tipo === "saida") {
+      const saida = saidas.find(s => s.id === t.id);
+      if (!saida || saida.categoria !== filterCategoria) return false;
+    }
+    if (filterCategoria && t.tipo === "entrada") return false;
+    if (filterPagamento && t.tipo === "entrada") {
+      if (t.categoria !== filterPagamento) return false;
+    }
+    if (filterPagamento && t.tipo === "saida") return false;
+    if (filterProcedimento) {
+      if (t.tipo !== "entrada" || t.procedimento_id !== filterProcedimento) return false;
+    }
+    if (filterPaciente) {
+      if (t.tipo !== "entrada" || t.paciente_nome !== filterPaciente) return false;
+    }
     return true;
   });
 
-  const hasActiveFilters = filterTipo !== "todos" || filterBusca || filterDataInicio || filterDataFim;
+  const hasActiveFilters = filterTipo !== "todos" || filterBusca || filterDataInicio || filterDataFim || filterCategoria || filterPagamento || filterProcedimento || filterPaciente;
+
+  // Unique patient names from entradas for filter
+  const uniquePacientes = [...new Set(entradas.map(e => e.paciente_nome))].sort();
 
   const inputCls = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
   const labelCls = "text-xs uppercase tracking-widest text-muted-foreground font-body mb-1 block";
@@ -310,7 +332,7 @@ const Financeiro = () => {
                 </p>
               </div>
               {hasActiveFilters && (
-                <button onClick={() => { setFilterTipo("todos"); setFilterBusca(""); setFilterDataInicio(""); setFilterDataFim(""); }}
+                <button onClick={() => { setFilterTipo("todos"); setFilterBusca(""); setFilterDataInicio(""); setFilterDataFim(""); setFilterCategoria(""); setFilterPagamento(""); setFilterProcedimento(""); setFilterPaciente(""); }}
                   className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
                   <X size={12} /> Limpar filtros
                 </button>
@@ -342,6 +364,29 @@ const Financeiro = () => {
                 <span className="text-xs text-muted-foreground">a</span>
                 <input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)}
                   className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+              </div>
+              {/* Second row of filters */}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <select value={filterProcedimento} onChange={e => setFilterProcedimento(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
+                  <option value="">Procedimento</option>
+                  {procedimentos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+                <select value={filterPaciente} onChange={e => setFilterPaciente(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
+                  <option value="">Paciente</option>
+                  {uniquePacientes.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <select value={filterPagamento} onChange={e => setFilterPagamento(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
+                  <option value="">Forma Pagamento</option>
+                  {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+                <select value={filterCategoria} onChange={e => setFilterCategoria(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all">
+                  <option value="">Categoria Saída</option>
+                  {CATEGORIAS_SAIDA.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             </div>
           </div>
