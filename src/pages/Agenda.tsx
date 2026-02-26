@@ -627,15 +627,6 @@ const Agenda = () => {
           <div className="bg-card rounded-2xl border border-border shadow-card p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display text-lg text-primary">Cronograma</h3>
-              <div className="flex gap-1">
-                {(["todos", "normal", "retorno", "confirmado"] as const).map(f => (
-                  <button key={f} onClick={() => setCronogramaFilter(f)}
-                    className="px-2 py-1 text-[10px] font-body rounded-md transition-all capitalize"
-                    style={cronogramaFilter === f ? { background: "hsl(var(--accent))", color: "hsl(var(--primary))", fontWeight: 600 } : { color: "hsl(var(--muted-foreground))" }}>
-                    {f}
-                  </button>
-                ))}
-              </div>
             </div>
             {dayAppointments.length === 0 && dayAvisos.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -670,12 +661,6 @@ const Agenda = () => {
                 ))}
                 {/* Agendamentos */}
                 {dayAppointments
-                  .filter(a => {
-                    if (cronogramaFilter === "todos") return true;
-                    if (cronogramaFilter === "retorno") return isRetornoAuto(a);
-                    if (cronogramaFilter === "confirmado") return isRetornoConfirmado(a);
-                    return !isRetornoAuto(a) && !isRetornoConfirmado(a);
-                  })
                   .map(a => {
                   const isRetorno = isRetornoAuto(a);
                   const isConfirmado = isRetornoConfirmado(a);
