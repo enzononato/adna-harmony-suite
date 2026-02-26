@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import AppLayout from "@/components/AppLayout";
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, CheckCircle, Clock, XCircle, Plus, X, ArrowUpCircle, ArrowDownCircle, Tag, Pencil, Save } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, CheckCircle, Clock, XCircle, Plus, X, ArrowUpCircle, ArrowDownCircle, Tag, Pencil, Save, Search, Filter } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -64,6 +64,12 @@ const Financeiro = () => {
   const [sValor, setSValor] = useState("");
   const [sObs, setSObs] = useState("");
   const [sData, setSData] = useState(new Date().toISOString().slice(0, 10));
+
+  // Filters
+  const [filterTipo, setFilterTipo] = useState<"todos" | "entrada" | "saida">("todos");
+  const [filterBusca, setFilterBusca] = useState("");
+  const [filterDataInicio, setFilterDataInicio] = useState("");
+  const [filterDataFim, setFilterDataFim] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -183,6 +189,20 @@ const Financeiro = () => {
     ...saidas.map(s => ({ ...s, tipo: "saida" as const, paciente_nome: "", procedimento_id: "" })),
   ].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
+  // Filtered transactions
+  const filteredTransactions = allTransactions.filter(t => {
+    if (filterTipo !== "todos" && t.tipo !== filterTipo) return false;
+    if (filterBusca) {
+      const q = filterBusca.toLowerCase();
+      if (!t.descricao.toLowerCase().includes(q) && !t.categoria.toLowerCase().includes(q)) return false;
+    }
+    if (filterDataInicio && t.data < filterDataInicio) return false;
+    if (filterDataFim && t.data > filterDataFim) return false;
+    return true;
+  });
+
+  const hasActiveFilters = filterTipo !== "todos" || filterBusca || filterDataInicio || filterDataFim;
+
   const inputCls = "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
   const labelCls = "text-xs uppercase tracking-widest text-muted-foreground font-body mb-1 block";
 
@@ -282,16 +302,58 @@ const Financeiro = () => {
         {/* Transactions list */}
         <div className="bg-card rounded-2xl border border-border shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
-            <h3 className="font-display text-lg">Movimentações</h3>
-            <p className="text-xs text-muted-foreground font-body mt-0.5">Todas as entradas e saídas registradas</p>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-display text-lg">Movimentações</h3>
+                <p className="text-xs text-muted-foreground font-body mt-0.5">
+                  {hasActiveFilters ? `${filteredTransactions.length} de ${allTransactions.length} movimentações` : "Todas as entradas e saídas registradas"}
+                </p>
+              </div>
+              {hasActiveFilters && (
+                <button onClick={() => { setFilterTipo("todos"); setFilterBusca(""); setFilterDataInicio(""); setFilterDataFim(""); }}
+                  className="text-xs font-body text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                  <X size={12} /> Limpar filtros
+                </button>
+              )}
+            </div>
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={filterBusca}
+                  onChange={e => setFilterBusca(e.target.value)}
+                  placeholder="Buscar por nome ou descrição..."
+                  className="w-full rounded-lg border border-border bg-background pl-8 pr-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                />
+              </div>
+              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                {([["todos", "Todos"], ["entrada", "Entradas"], ["saida", "Saídas"]] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setFilterTipo(val)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-body font-medium transition-all ${filterTipo === val ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={filterDataInicio} onChange={e => setFilterDataInicio(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+                <span className="text-xs text-muted-foreground">a</span>
+                <input type="date" value={filterDataFim} onChange={e => setFilterDataFim(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+              </div>
+            </div>
           </div>
           {loading ? (
             <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Carregando...</div>
-          ) : allTransactions.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">Nenhuma movimentação registrada ainda.</div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground font-body">
+              {hasActiveFilters ? "Nenhuma movimentação encontrada com os filtros aplicados." : "Nenhuma movimentação registrada ainda."}
+            </div>
           ) : (
             <div className="divide-y divide-border">
-              {allTransactions.map((t) => (
+              {filteredTransactions.map((t) => (
                 <div key={t.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors group">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === "entrada" ? "bg-primary/10" : "bg-destructive/10"}`}>
