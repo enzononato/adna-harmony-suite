@@ -42,6 +42,8 @@ const Agenda = () => {
   const [showCadastrarModal, setShowCadastrarModal] = useState(false);
   const [nomePendenteCadastro, setNomePendenteCadastro] = useState("");
   const [detailAppt, setDetailAppt] = useState<Agendamento | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteType, setConfirmDeleteType] = useState<"agendamento" | "retorno">("agendamento");
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -282,18 +284,36 @@ const Agenda = () => {
   };
 
   const handleRejectRetorno = async (id: string) => {
-    if (!confirm("Cancelar este retorno automático?")) return;
-    const { error } = await supabase.from("agendamentos").delete().eq("id", id);
-    if (error) { toast.error("Erro ao cancelar retorno."); return; }
-    toast.success("Retorno cancelado.");
-    fetchData();
+    setConfirmDeleteId(id);
+    setConfirmDeleteType("retorno");
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir este agendamento?")) return;
-    const { error } = await supabase.from("agendamentos").delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir."); return; }
-    toast.success("Agendamento excluído.");
+    setConfirmDeleteId(id);
+    setConfirmDeleteType("agendamento");
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDeleteId) return;
+    const appt = agendamentos.find(a => a.id === confirmDeleteId);
+    const { error } = await supabase.from("agendamentos").delete().eq("id", confirmDeleteId);
+    if (error) { toast.error("Erro ao excluir."); setConfirmDeleteId(null); return; }
+
+    // Also delete matching tratamento if exists
+    if (appt) {
+      const procedimentoNome = appt.procedimentos?.nome || "Procedimento";
+      const paciente = pacientes.find(p => p.nome === appt.paciente_nome);
+      if (paciente) {
+        await supabase.from("tratamentos")
+          .delete()
+          .eq("paciente_id", paciente.id)
+          .eq("procedimento", procedimentoNome)
+          .eq("data", appt.data);
+      }
+    }
+
+    toast.success(confirmDeleteType === "retorno" ? "Retorno cancelado." : "Agendamento excluído.");
+    setConfirmDeleteId(null);
     fetchData();
   };
 
@@ -919,6 +939,35 @@ const Agenda = () => {
               <button onClick={() => setDetailAppt(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Fechar</button>
               <button onClick={() => { startEdit(detailAppt); setDetailAppt(null); }} className="flex-1 py-2.5 rounded-lg text-sm font-body font-medium transition-all hover:opacity-90" style={{ background: "var(--gradient-gold)", color: "hsl(var(--primary-foreground))" }}>
                 Editar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation delete dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDeleteId(null)}>
+          <div className="bg-card rounded-2xl border border-border shadow-card p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-destructive" />
+              </div>
+              <h3 className="font-display text-lg">
+                {confirmDeleteType === "retorno" ? "Cancelar retorno?" : "Excluir agendamento?"}
+              </h3>
+            </div>
+            <p className="text-sm text-muted-foreground font-body mb-5">
+              {confirmDeleteType === "retorno"
+                ? "O retorno automático será cancelado e também removido do histórico do paciente."
+                : "O agendamento será excluído e também removido do histórico do paciente."}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">
+                Não
+              </button>
+              <button onClick={executeDelete} className="flex-1 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-body font-medium hover:opacity-90 transition-opacity">
+                Sim, excluir
               </button>
             </div>
           </div>
