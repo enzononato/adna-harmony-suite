@@ -29,7 +29,7 @@ const Agenda = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null }[]>([]);
+  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null; dias_retorno?: number | null }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
@@ -60,7 +60,7 @@ const Agenda = () => {
 
   const fetchData = async () => {
     const [pRes, aRes, pacRes, avRes] = await Promise.all([
-      supabase.from("procedimentos").select("id, nome, duracao_minutos").order("nome"),
+      supabase.from("procedimentos").select("id, nome, duracao_minutos, dias_retorno").order("nome"),
       supabase.from("agendamentos").select("*, procedimentos(nome)").order("horario"),
       supabase.from("pacientes").select("id, nome").order("nome"),
       supabase.from("avisos").select("*").order("data"),
@@ -188,6 +188,38 @@ const Agenda = () => {
     } as any);
     if (error) { toast.error("Erro ao salvar agendamento."); return; }
     toast.success("Agendamento salvo!");
+
+    // Retorno automático
+    const proc = procedimentos.find(p => p.id === newProcedimentoId);
+    if (proc?.dias_retorno) {
+      const retornoDate = new Date(newData + "T00:00:00");
+      retornoDate.setDate(retornoDate.getDate() + proc.dias_retorno);
+      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
+      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
+      
+      const { error: retErr } = await supabase.from("agendamentos").insert({
+        paciente_nome: newPaciente.trim(),
+        procedimento_id: newProcedimentoId,
+        data: retornoDateStr,
+        horario: newHorario,
+        observacoes: "Retorno automático",
+        duracao_minutos: dur,
+      } as any);
+      
+      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
+      if (retErr) {
+        toast.error(`Erro ao criar retorno automático para ${retornoFormatted}.`);
+      } else {
+        // Check for conflicts
+        const hasConflict = checkOverlap(retornoDateStr, newHorario, dur);
+        if (hasConflict) {
+          toast.warning(`Retorno agendado para ${retornoFormatted}, mas há conflito de horário. Ajuste manualmente.`);
+        } else {
+          toast.success(`Retorno agendado automaticamente para ${retornoFormatted}.`);
+        }
+      }
+    }
+
     setShowNewModal(false);
     resetForm();
     fetchData();

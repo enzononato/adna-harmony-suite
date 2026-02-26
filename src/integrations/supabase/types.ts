@@ -191,6 +191,7 @@ export type Database = {
       procedimentos: {
         Row: {
           created_at: string
+          dias_retorno: number | null
           duracao_minutos: number | null
           id: string
           nome: string
@@ -198,6 +199,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dias_retorno?: number | null
           duracao_minutos?: number | null
           id?: string
           nome: string
@@ -205,6 +207,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dias_retorno?: number | null
           duracao_minutos?: number | null
           id?: string
           nome?: string
