@@ -21,56 +21,56 @@
     --popover: 30 15% 98%;
     --popover-foreground: 0 0% 20%;
 
-    /* ── Brand: Gold gradient ── */
-    --primary: 38 72% 52%;
-    --primary-foreground: 38 20% 98%;
+    /* ── Brand: Rose ── */
+    --primary: 7 52% 71%;
+    --primary-foreground: 0 0% 100%;
 
-    /* ── Salmon ── */
-    --secondary: 5 100% 87%;
+    /* ── Light pink ── */
+    --secondary: 9 44% 84%;
     --secondary-foreground: 0 0% 20%;
 
     /* ── Gray muted ── */
     --muted: 0 0% 93%;
     --muted-foreground: 0 0% 45%;
 
-    /* ── Accent: light salmon ── */
-    --accent: 5 80% 94%;
-    --accent-foreground: 5 60% 40%;
+    /* ── Accent: light pink ── */
+    --accent: 9 44% 94%;
+    --accent-foreground: 4 34% 40%;
 
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 0 0% 85%;
     --input: 0 0% 90%;
-    --ring: 38 72% 52%;
+    --ring: 7 52% 71%;
 
     --radius: 0.625rem;
 
     /* ── Sidebar ── */
     --sidebar-background: 0 0% 15%;
     --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 38 72% 52%;
-    --sidebar-primary-foreground: 0 0% 15%;
+    --sidebar-primary: 7 52% 71%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 22%;
     --sidebar-accent-foreground: 0 0% 90%;
     --sidebar-border: 0 0% 25%;
-    --sidebar-ring: 38 72% 52%;
+    --sidebar-ring: 7 52% 71%;
 
     /* ── Custom tokens ── */
-    --salmon: 5 100% 87%;
+    --salmon: 7 52% 71%;
     --gray: 0 0% 65%;
-    --gold: 38 72% 52%;
-    --gold-warm: 30 80% 45%;
-    --gold-light: 42 65% 70%;
+    --rose: 7 52% 71%;
+    --rose-dark: 4 34% 64%;
+    --rose-light: 9 44% 84%;
     --sand: 30 15% 92%;
     --sand-dark: 30 10% 82%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(38 72% 52% / 0.12), hsl(5 100% 87% / 0.18));
-    --gradient-gold: linear-gradient(135deg, hsl(30 80% 45%), hsl(38 72% 52%), hsl(42 65% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(7 52% 71% / 0.12), hsl(9 44% 84% / 0.18));
+    --gradient-gold: linear-gradient(135deg, hsl(4 34% 64%), hsl(7 52% 71%), hsl(9 44% 84%));
     --gradient-sidebar: linear-gradient(180deg, hsl(0 0% 15%), hsl(0 0% 10%));
 
     --shadow-soft: 0 4px 24px hsl(0 0% 20% / 0.06);
-    --shadow-gold: 0 4px 20px hsl(38 72% 52% / 0.3);
+    --shadow-gold: 0 4px 20px hsl(7 52% 71% / 0.3);
     --shadow-card: 0 2px 12px hsl(0 0% 20% / 0.08);
   }
 }
