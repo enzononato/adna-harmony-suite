@@ -1,55 +1,23 @@
 
 
-## Aba "Planejamento" na ficha do paciente
+## Atualização da Paleta de Cores
 
-### O que sera feito
+### Cores da imagem convertidas para HSL:
+- **#DE9A8D** → `7 52% 71%` — rosa/salmon principal (será o **primary**)
+- **#EBC9C3** → `9 44% 84%` — rosa claro (será o **accent/secondary**)
+- **#C7837E** → `4 34% 64%` — rosa escuro (será a cor de destaque/hover)
 
-Adicionar uma nova aba **Planejamento** ao lado de Historico, Anamnese e Arquivos. Nessa aba voce podera:
+### Mudanças em `src/index.css`:
 
-- Criar um plano para o paciente: escolher um procedimento (da lista de procedimentos cadastrados) e definir a quantidade total de sessoes planejadas
-- Registrar sessoes realizadas (com data e observacoes opcionais)
-- Visualizar o progresso de cada plano com uma barra de progresso (ex: 3/10 sessoes)
-- Editar ou excluir planos
+1. **Primary**: trocar do gold (`38 72% 52%`) para `#DE9A8D` (`7 52% 71%`)
+2. **Secondary**: trocar para `#EBC9C3` (`9 44% 84%`)
+3. **Accent**: usar `#EBC9C3` como base do accent
+4. **Ring/focus**: acompanhar o novo primary
+5. **Sidebar primary**: atualizar para o novo primary
+6. **Custom tokens**: atualizar `--salmon`, `--gold*` para as novas cores
+7. **Gradients**: refazer `--gradient-hero` e `--gradient-gold` usando as 3 novas cores
+8. **Shadows**: `--shadow-gold` → usar a nova cor principal
 
-### Nova tabela no banco de dados
-
-**planejamentos**
-| Coluna | Tipo | Descricao |
-|---|---|---|
-| id | uuid (PK) | Identificador |
-| paciente_id | uuid | Referencia ao paciente |
-| procedimento_id | uuid | Referencia ao procedimento |
-| sessoes_planejadas | integer | Total de sessoes previstas |
-| observacoes | text (nullable) | Notas gerais do plano |
-| created_at | timestamp | Data de criacao |
-
-**planejamento_sessoes**
-| Coluna | Tipo | Descricao |
-|---|---|---|
-| id | uuid (PK) | Identificador |
-| planejamento_id | uuid | Referencia ao plano |
-| data | date | Data da sessao realizada |
-| notas | text (nullable) | Observacoes da sessao |
-| created_at | timestamp | Data de criacao |
-
-Ambas com RLS habilitado para usuarios autenticados.
-
-### Alteracoes no codigo
-
-**src/pages/Pacientes.tsx:**
-1. Adicionar "planejamento" ao tipo `Tab` e incluir a aba no menu de abas
-2. Buscar dados das tabelas `planejamentos`, `planejamento_sessoes` e `procedimentos` no `fetchData`
-3. Renderizar a aba com:
-   - Lista de planos do paciente, cada um mostrando o nome do procedimento, barra de progresso (sessoes feitas / planejadas), e lista das sessoes realizadas
-   - Botao para adicionar novo plano (modal com select de procedimento + input de quantidade de sessoes)
-   - Botao para registrar sessao realizada em cada plano (modal simples com data e notas)
-   - Opcao de excluir plano
-
-### Fluxo do usuario
-
-1. Abre a ficha do paciente
-2. Clica na aba "Planejamento"
-3. Clica em "Novo Plano" - escolhe o procedimento e define quantas sessoes
-4. A cada sessao realizada, clica em "Registrar Sessao" no plano correspondente
-5. Acompanha o progresso visualmente pela barra de progresso
+### Arquivos afetados:
+- `src/index.css` — variáveis CSS centrais (única alteração necessária, o resto do sistema já consome via variáveis)
 
