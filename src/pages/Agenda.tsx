@@ -813,14 +813,14 @@ const Agenda = () => {
                 <input type="text" value={newPacienteSearch} 
                   onChange={e => { setNewPacienteSearch(e.target.value); setNewPaciente(e.target.value); setShowPacienteDropdown(true); }}
                   onFocus={() => setShowPacienteDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowPacienteDropdown(false), 150)}
+                  onBlur={() => setTimeout(() => setShowPacienteDropdown(false), 300)}
                   placeholder="Digite o nome do paciente..."
                   className={`${inputCls} ${newPaciente ? "bg-accent border-primary/40" : ""}`} />
                 {showPacienteDropdown && newPacienteSearch && (
                   <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded-xl shadow-card max-h-40 overflow-y-auto">
                     {pacientes.filter(p => p.nome.toLowerCase().includes(newPacienteSearch.toLowerCase())).map(p => (
                       <button key={p.id} type="button"
-                        onClick={() => { setNewPaciente(p.nome); setNewPacienteSearch(p.nome); setShowPacienteDropdown(false); }}
+                        onMouseDown={e => { e.preventDefault(); setNewPaciente(p.nome); setNewPacienteSearch(p.nome); setShowPacienteDropdown(false); }}
                         className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
                         <User size={12} className="text-muted-foreground" />
                         {p.nome}
