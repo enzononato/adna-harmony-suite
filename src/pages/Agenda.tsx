@@ -757,7 +757,7 @@ const Agenda = () => {
                     ) : (
                       pacientes.filter(p => p.nome.toLowerCase().includes(editPacienteSearch.toLowerCase())).map(p => (
                         <button key={p.id} type="button"
-                          onClick={() => { setEditPaciente(p.nome); setEditPacienteSearch(p.nome); setShowEditPacienteDropdown(false); }}
+                          onMouseDown={e => { e.preventDefault(); setEditPaciente(p.nome); setEditPacienteSearch(p.nome); setShowEditPacienteDropdown(false); }}
                           className="w-full text-left px-3 py-2 text-sm font-body hover:bg-accent transition-colors flex items-center gap-2">
                           <User size={12} className="text-muted-foreground" />{p.nome}
                         </button>
