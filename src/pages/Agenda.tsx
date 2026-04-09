@@ -286,67 +286,6 @@ const Agenda = () => {
     }
   };
 
-  const isRetornoAuto = (a: Agendamento) => a.observacoes === "Retorno automático";
-  const isRetornoConfirmado = (a: Agendamento) => a.observacoes === "Retorno confirmado";
-
-  const handleConfirmRetorno = async (a: Agendamento) => {
-    const { error } = await supabase.from("agendamentos").update({
-      observacoes: "Retorno confirmado",
-    } as any).eq("id", a.id);
-    if (error) { toast.error("Erro ao confirmar retorno."); return; }
-    toast.success("Retorno confirmado!");
-
-    // Schedule next return using smallest dias_retorno from the appointment's procedures
-    const apptProcs = a.agendamento_procedimentos || [];
-    const procsWithRetorno = apptProcs
-      .map(ap => ap.procedimentos)
-      .filter(p => p && p.dias_retorno && p.dias_retorno > 0);
-    const smallestRetorno = procsWithRetorno.length > 0
-      ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-      : null;
-
-    if (smallestRetorno) {
-      const retornoDate = new Date(a.data + "T00:00:00");
-      retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
-
-      const { data: retAgend, error: retErr } = await supabase.from("agendamentos").insert({
-        paciente_nome: a.paciente_nome,
-        procedimento_id: a.procedimento_id,
-        data: retornoDateStr,
-        horario: a.horario,
-        observacoes: "Retorno automático",
-        duracao_minutos: a.duracao_minutos,
-      } as any).select("id").single();
-
-      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
-      if (retErr || !retAgend) {
-        toast.error(`Erro ao criar próximo retorno para ${retornoFormatted}.`);
-      } else {
-        // Copy junction rows
-        const procIds = apptProcs.map(ap => ap.procedimento_id);
-        for (const procId of procIds) {
-          await supabase.from("agendamento_procedimentos").insert({
-            agendamento_id: retAgend.id,
-            procedimento_id: procId,
-          } as any);
-        }
-        const hasConflict = checkOverlap(retornoDateStr, a.horario, a.duracao_minutos);
-        if (hasConflict) {
-          toast.warning(`Próximo retorno agendado para ${retornoFormatted}, mas há conflito de horário.`);
-        } else {
-          toast.success(`Próximo retorno agendado para ${retornoFormatted}.`);
-        }
-      }
-    }
-    fetchData();
-  };
-
-  const handleRejectRetorno = async (id: string) => {
-    setConfirmDeleteId(id);
-    setConfirmDeleteType("retorno");
-  };
 
   const handleDelete = async (id: string) => {
     setConfirmDeleteId(id);
@@ -612,24 +551,12 @@ const Agenda = () => {
                 {/* Agendamentos */}
                 {dayAppointments
                   .map(a => {
-                  const isRetorno = isRetornoAuto(a);
-                  const isConfirmado = isRetornoConfirmado(a);
-                  const cardClass = isRetorno
-                    ? "bg-blue-500/10 border border-blue-500/30"
-                    : isConfirmado
-                      ? "bg-green-500/10 border border-green-500/30"
-                      : "bg-accent/40";
-                  const accentColor = isRetorno ? "text-blue-500" : isConfirmado ? "text-green-600" : "text-primary";
-                  const dividerColor = isRetorno ? "bg-blue-500/30" : isConfirmado ? "bg-green-500/30" : "bg-primary/30";
-
                   return (
-                    <div key={a.id} className={`flex flex-col gap-2 p-3 rounded-xl group cursor-pointer ${cardClass}`} onClick={() => setDetailAppt(a)}>
+                    <div key={a.id} className="flex flex-col gap-2 p-3 rounded-xl group cursor-pointer bg-accent/40" onClick={() => setDetailAppt(a)}>
                       <div className="flex gap-3">
                         <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                          {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
-                            : isConfirmado ? <Check size={12} className="text-green-600" />
-                            : <Clock size={12} className="text-primary" />}
-                          <span className={`text-xs font-body font-medium ${accentColor}`}>
+                          <Clock size={12} className="text-primary" />
+                          <span className="text-xs font-body font-medium text-primary">
                             {a.horario.slice(0, 5)}
                             {a.duracao_minutos ? (() => {
                               const [h, m] = a.horario.split(":").map(Number);
@@ -638,25 +565,15 @@ const Agenda = () => {
                             })() : ""}
                           </span>
                         </div>
-                        <div className={`h-auto w-px ${dividerColor}`} />
+                        <div className="h-auto w-px bg-primary/30" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <User size={11} className="text-muted-foreground flex-shrink-0" />
                             <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
                           </div>
                           <p className="text-[11px] text-muted-foreground font-body">{getApptProcNames(a)}</p>
-                          {isRetorno && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
-                              <RotateCcw size={9} /> Retorno automático
-                            </span>
-                          )}
-                          {isConfirmado && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-green-500/20 text-green-700">
-                              <Check size={9} /> Retorno confirmado
-                            </span>
-                          )}
                         </div>
-                        <div className={`flex gap-1 self-start ${!isRetorno && !isConfirmado ? "opacity-0 group-hover:opacity-100" : ""} transition-all`}>
+                        <div className="flex gap-1 self-start opacity-0 group-hover:opacity-100 transition-all">
                           <button onClick={(e) => { e.stopPropagation(); startEdit(a); }} className="text-muted-foreground hover:text-primary p-1" title="Editar">
                             <Pencil size={13} />
                           </button>
@@ -665,16 +582,6 @@ const Agenda = () => {
                           </button>
                         </div>
                       </div>
-                      {isRetorno && (
-                        <div className="flex gap-1.5 ml-[45px]">
-                          <button onClick={(e) => { e.stopPropagation(); handleConfirmRetorno(a); }} className="flex items-center gap-1 text-xs font-body text-green-600 hover:text-green-700 hover:bg-green-100 px-2 py-1 rounded transition-colors" title="Confirmar retorno">
-                            <Check size={13} strokeWidth={2.5} /> Confirmar
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleRejectRetorno(a.id); }} className="flex items-center gap-1 text-xs font-body text-destructive hover:bg-destructive/10 px-2 py-1 rounded transition-colors" title="Cancelar retorno">
-                            <X size={13} strokeWidth={2.5} /> Cancelar
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -919,16 +826,6 @@ const Agenda = () => {
                   <p className="text-sm font-body">{detailAppt.observacoes}</p>
                 </div>
               )}
-              {isRetornoAuto(detailAppt) && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-blue-500/15 text-blue-600 w-fit">
-                  <RotateCcw size={12} /> Retorno automático
-                </span>
-              )}
-              {isRetornoConfirmado(detailAppt) && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-green-500/15 text-green-700 w-fit">
-                  <Check size={12} /> Retorno confirmado
-                </span>
-              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setDetailAppt(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Fechar</button>
@@ -948,14 +845,11 @@ const Agenda = () => {
               <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
                 <AlertTriangle size={20} className="text-destructive" />
               </div>
-              <h3 className="font-display text-lg">
-                {confirmDeleteType === "retorno" ? "Cancelar retorno?" : "Excluir agendamento?"}
-              </h3>
+              <h3 className="font-display text-lg">Excluir agendamento?</h3>
             </div>
             <p className="text-sm text-muted-foreground font-body mb-5">
-              {confirmDeleteType === "retorno"
-                ? "O retorno automático será cancelado e também removido do histórico do paciente."
-                : "O agendamento será excluído e também removido do histórico do paciente."}
+              O agendamento será excluído e também removido do histórico do paciente.
+            </p>
             </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">
