@@ -51,7 +51,12 @@ const ProcedimentoMultiSelect = ({
         className="overflow-y-auto rounded-xl border border-border bg-card p-1 flex flex-col gap-0.5"
         style={{ maxHeight }}
       >
-        {procedimentos.map((p) => {
+      const sorted = [...procedimentos].sort((a, b) => {
+        if (a.nome === "Outros") return 1;
+        if (b.nome === "Outros") return -1;
+        return 0;
+      });
+      {sorted.map((p) => {
           const isSelected = selectedIds.includes(p.id);
           return (
             <button
