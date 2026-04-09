@@ -210,12 +210,13 @@ const Agenda = () => {
       return;
     }
 
+    const obsWithOutros = [newObs.trim(), newOutrosDescricao.trim() ? `Outros: ${newOutrosDescricao.trim()}` : ""].filter(Boolean).join(" | ") || null;
     const { data: newAgend, error } = await supabase.from("agendamentos").insert({
       paciente_nome: newPaciente.trim(),
       procedimento_id: newProcedimentoIds[0],
       data: newData,
       horario: newHorario,
-      observacoes: newObs.trim() || null,
+      observacoes: obsWithOutros,
       duracao_minutos: dur,
     } as any).select("id").single();
     if (error || !newAgend) { toast.error("Erro ao salvar agendamento."); return; }
