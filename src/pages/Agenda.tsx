@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ProcedimentoMultiSelect from "@/components/ProcedimentoMultiSelect";
@@ -11,7 +11,7 @@ const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Jul
 
 type AgendProcedimento = {
   procedimento_id: string;
-  procedimentos: { nome: string; duracao_minutos?: number | null; dias_retorno?: number | null } | null;
+  procedimentos: { nome: string; duracao_minutos?: number | null } | null;
 };
 
 type Agendamento = {
@@ -45,19 +45,19 @@ const Agenda = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null; dias_retorno?: number | null }[]>([]);
+  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [showAvisoModal, setShowAvisoModal] = useState(false);
   const [avisoTexto, setAvisoTexto] = useState("");
-  const [cronogramaFilter, setCronogramaFilter] = useState<"todos" | "normal" | "retorno" | "confirmado">("todos");
+  
   const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
   const [showCadastrarModal, setShowCadastrarModal] = useState(false);
   const [nomePendenteCadastro, setNomePendenteCadastro] = useState("");
   const [detailAppt, setDetailAppt] = useState<Agendamento | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [confirmDeleteType, setConfirmDeleteType] = useState<"agendamento" | "retorno">("agendamento");
+  
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -84,8 +84,8 @@ const Agenda = () => {
 
   const fetchData = async () => {
     const [pRes, aRes, pacRes, avRes] = await Promise.all([
-      supabase.from("procedimentos").select("id, nome, duracao_minutos, dias_retorno").order("nome"),
-      supabase.from("agendamentos").select("*, procedimentos(nome), agendamento_procedimentos(procedimento_id, procedimentos(nome, duracao_minutos, dias_retorno))").order("horario"),
+      supabase.from("procedimentos").select("id, nome, duracao_minutos").order("nome"),
+      supabase.from("agendamentos").select("*, procedimentos(nome), agendamento_procedimentos(procedimento_id, procedimentos(nome, duracao_minutos))").order("horario"),
       supabase.from("pacientes").select("id, nome").order("nome"),
       supabase.from("avisos").select("*").order("data"),
     ]);
@@ -350,7 +350,6 @@ const Agenda = () => {
 
   const handleDelete = async (id: string) => {
     setConfirmDeleteId(id);
-    setConfirmDeleteType("agendamento");
   };
 
   const executeDelete = async () => {
@@ -374,7 +373,7 @@ const Agenda = () => {
       }
     }
 
-    toast.success(confirmDeleteType === "retorno" ? "Retorno cancelado." : "Agendamento excluído.");
+    toast.success("Agendamento excluído.");
     setConfirmDeleteId(null);
     fetchData();
   };
@@ -430,59 +429,6 @@ const Agenda = () => {
     }
 
     toast.success("Agendamento atualizado!");
-
-    // Propagate changes to linked auto-return appointments
-    if (original) {
-      const originalProcIds = original.agendamento_procedimentos?.map(ap => ap.procedimento_id) || [];
-      const linkedReturns = agendamentos.filter(a =>
-        a.id !== editingId &&
-        a.observacoes === "Retorno automático" &&
-        a.paciente_nome === original.paciente_nome &&
-        a.data > original.data
-      );
-
-      for (const ret of linkedReturns) {
-        const updatePayload: any = {};
-        if (editPaciente.trim() !== original.paciente_nome) updatePayload.paciente_nome = editPaciente.trim();
-        if (editProcedimentoIds[0] !== original.procedimento_id) updatePayload.procedimento_id = editProcedimentoIds[0] || null;
-        if (editHorario !== original.horario) updatePayload.horario = editHorario;
-        if (dur !== original.duracao_minutos) updatePayload.duracao_minutos = dur;
-
-        if (editData !== original.data) {
-          const selectedProcs = editProcedimentoIds.map(id => procedimentos.find(p => p.id === id)).filter(Boolean);
-          const procsWithRetorno = selectedProcs.filter(p => p!.dias_retorno && p!.dias_retorno > 0);
-          const smallestRetorno = procsWithRetorno.length > 0
-            ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-            : null;
-          if (smallestRetorno) {
-            const retornoDate = new Date(editData + "T00:00:00");
-            retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-            if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-            updatePayload.data = retornoDate.toISOString().slice(0, 10);
-          }
-        }
-
-        if (Object.keys(updatePayload).length > 0) {
-          await supabase.from("agendamentos").update(updatePayload).eq("id", ret.id);
-        }
-
-        // Update junction table for return too if procedures changed
-        const procsChanged = JSON.stringify(editProcedimentoIds.sort()) !== JSON.stringify(originalProcIds.sort());
-        if (procsChanged) {
-          await supabase.from("agendamento_procedimentos").delete().eq("agendamento_id", ret.id);
-          for (const procId of editProcedimentoIds) {
-            await supabase.from("agendamento_procedimentos").insert({
-              agendamento_id: ret.id,
-              procedimento_id: procId,
-            } as any);
-          }
-        }
-      }
-
-      if (linkedReturns.length > 0) {
-        toast.info("Retorno(s) automático(s) atualizado(s) também.");
-      }
-    }
 
     setEditingId(null);
     fetchData();
