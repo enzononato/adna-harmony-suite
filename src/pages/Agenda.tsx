@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Check, RotateCcw, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, User, Trash2, Pencil, Save, X, Bell, AlertTriangle, Tag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ProcedimentoMultiSelect from "@/components/ProcedimentoMultiSelect";
@@ -11,7 +11,7 @@ const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Jul
 
 type AgendProcedimento = {
   procedimento_id: string;
-  procedimentos: { nome: string; duracao_minutos?: number | null; dias_retorno?: number | null } | null;
+  procedimentos: { nome: string; duracao_minutos?: number | null } | null;
 };
 
 type Agendamento = {
@@ -45,19 +45,19 @@ const Agenda = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [view, setView] = useState<ViewMode>("mensal");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null; dias_retorno?: number | null }[]>([]);
+  const [procedimentos, setProcedimentos] = useState<{ id: string; nome: string; duracao_minutos?: number | null }[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<{ id: string; nome: string }[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [showAvisoModal, setShowAvisoModal] = useState(false);
   const [avisoTexto, setAvisoTexto] = useState("");
-  const [cronogramaFilter, setCronogramaFilter] = useState<"todos" | "normal" | "retorno" | "confirmado">("todos");
+  
   const [avisoData, setAvisoData] = useState(new Date().toISOString().slice(0, 10));
   const [showCadastrarModal, setShowCadastrarModal] = useState(false);
   const [nomePendenteCadastro, setNomePendenteCadastro] = useState("");
   const [detailAppt, setDetailAppt] = useState<Agendamento | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [confirmDeleteType, setConfirmDeleteType] = useState<"agendamento" | "retorno">("agendamento");
+  
 
   // Form state (new)
   const [newPaciente, setNewPaciente] = useState("");
@@ -84,8 +84,8 @@ const Agenda = () => {
 
   const fetchData = async () => {
     const [pRes, aRes, pacRes, avRes] = await Promise.all([
-      supabase.from("procedimentos").select("id, nome, duracao_minutos, dias_retorno").order("nome"),
-      supabase.from("agendamentos").select("*, procedimentos(nome), agendamento_procedimentos(procedimento_id, procedimentos(nome, duracao_minutos, dias_retorno))").order("horario"),
+      supabase.from("procedimentos").select("id, nome, duracao_minutos").order("nome"),
+      supabase.from("agendamentos").select("*, procedimentos(nome), agendamento_procedimentos(procedimento_id, procedimentos(nome, duracao_minutos))").order("horario"),
       supabase.from("pacientes").select("id, nome").order("nome"),
       supabase.from("avisos").select("*").order("data"),
     ]);
@@ -231,47 +231,6 @@ const Agenda = () => {
 
     toast.success("Agendamento salvo!");
 
-    // Retorno automático - use smallest dias_retorno
-    const selectedProcs = newProcedimentoIds.map(id => procedimentos.find(p => p.id === id)).filter(Boolean);
-    const procsWithRetorno = selectedProcs.filter(p => p!.dias_retorno && p!.dias_retorno > 0);
-    const smallestRetorno = procsWithRetorno.length > 0
-      ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-      : null;
-
-    if (smallestRetorno) {
-      const retornoDate = new Date(newData + "T00:00:00");
-      retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
-
-      const { data: retAgend, error: retErr } = await supabase.from("agendamentos").insert({
-        paciente_nome: newPaciente.trim(),
-        procedimento_id: newProcedimentoIds[0],
-        data: retornoDateStr,
-        horario: newHorario,
-        observacoes: "Retorno automático",
-        duracao_minutos: dur,
-      } as any).select("id").single();
-
-      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
-      if (retErr || !retAgend) {
-        toast.error(`Erro ao criar retorno automático para ${retornoFormatted}.`);
-      } else {
-        // Insert junction rows for retorno
-        for (const procId of newProcedimentoIds) {
-          await supabase.from("agendamento_procedimentos").insert({
-            agendamento_id: retAgend.id,
-            procedimento_id: procId,
-          } as any);
-        }
-        const hasConflict = checkOverlap(retornoDateStr, newHorario, dur);
-        if (hasConflict) {
-          toast.warning(`Retorno agendado para ${retornoFormatted}, mas há conflito de horário. Ajuste manualmente.`);
-        } else {
-          toast.success(`Retorno agendado automaticamente para ${retornoFormatted}.`);
-        }
-      }
-    }
 
     const isRegistered = pacientes.some(p => p.nome.toLowerCase() === newPaciente.trim().toLowerCase());
     const savedName = newPaciente.trim();
@@ -286,71 +245,9 @@ const Agenda = () => {
     }
   };
 
-  const isRetornoAuto = (a: Agendamento) => a.observacoes === "Retorno automático";
-  const isRetornoConfirmado = (a: Agendamento) => a.observacoes === "Retorno confirmado";
-
-  const handleConfirmRetorno = async (a: Agendamento) => {
-    const { error } = await supabase.from("agendamentos").update({
-      observacoes: "Retorno confirmado",
-    } as any).eq("id", a.id);
-    if (error) { toast.error("Erro ao confirmar retorno."); return; }
-    toast.success("Retorno confirmado!");
-
-    // Schedule next return using smallest dias_retorno from the appointment's procedures
-    const apptProcs = a.agendamento_procedimentos || [];
-    const procsWithRetorno = apptProcs
-      .map(ap => ap.procedimentos)
-      .filter(p => p && p.dias_retorno && p.dias_retorno > 0);
-    const smallestRetorno = procsWithRetorno.length > 0
-      ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-      : null;
-
-    if (smallestRetorno) {
-      const retornoDate = new Date(a.data + "T00:00:00");
-      retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
-
-      const { data: retAgend, error: retErr } = await supabase.from("agendamentos").insert({
-        paciente_nome: a.paciente_nome,
-        procedimento_id: a.procedimento_id,
-        data: retornoDateStr,
-        horario: a.horario,
-        observacoes: "Retorno automático",
-        duracao_minutos: a.duracao_minutos,
-      } as any).select("id").single();
-
-      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
-      if (retErr || !retAgend) {
-        toast.error(`Erro ao criar próximo retorno para ${retornoFormatted}.`);
-      } else {
-        // Copy junction rows
-        const procIds = apptProcs.map(ap => ap.procedimento_id);
-        for (const procId of procIds) {
-          await supabase.from("agendamento_procedimentos").insert({
-            agendamento_id: retAgend.id,
-            procedimento_id: procId,
-          } as any);
-        }
-        const hasConflict = checkOverlap(retornoDateStr, a.horario, a.duracao_minutos);
-        if (hasConflict) {
-          toast.warning(`Próximo retorno agendado para ${retornoFormatted}, mas há conflito de horário.`);
-        } else {
-          toast.success(`Próximo retorno agendado para ${retornoFormatted}.`);
-        }
-      }
-    }
-    fetchData();
-  };
-
-  const handleRejectRetorno = async (id: string) => {
-    setConfirmDeleteId(id);
-    setConfirmDeleteType("retorno");
-  };
 
   const handleDelete = async (id: string) => {
     setConfirmDeleteId(id);
-    setConfirmDeleteType("agendamento");
   };
 
   const executeDelete = async () => {
@@ -374,7 +271,7 @@ const Agenda = () => {
       }
     }
 
-    toast.success(confirmDeleteType === "retorno" ? "Retorno cancelado." : "Agendamento excluído.");
+    toast.success("Agendamento excluído.");
     setConfirmDeleteId(null);
     fetchData();
   };
@@ -430,59 +327,6 @@ const Agenda = () => {
     }
 
     toast.success("Agendamento atualizado!");
-
-    // Propagate changes to linked auto-return appointments
-    if (original) {
-      const originalProcIds = original.agendamento_procedimentos?.map(ap => ap.procedimento_id) || [];
-      const linkedReturns = agendamentos.filter(a =>
-        a.id !== editingId &&
-        a.observacoes === "Retorno automático" &&
-        a.paciente_nome === original.paciente_nome &&
-        a.data > original.data
-      );
-
-      for (const ret of linkedReturns) {
-        const updatePayload: any = {};
-        if (editPaciente.trim() !== original.paciente_nome) updatePayload.paciente_nome = editPaciente.trim();
-        if (editProcedimentoIds[0] !== original.procedimento_id) updatePayload.procedimento_id = editProcedimentoIds[0] || null;
-        if (editHorario !== original.horario) updatePayload.horario = editHorario;
-        if (dur !== original.duracao_minutos) updatePayload.duracao_minutos = dur;
-
-        if (editData !== original.data) {
-          const selectedProcs = editProcedimentoIds.map(id => procedimentos.find(p => p.id === id)).filter(Boolean);
-          const procsWithRetorno = selectedProcs.filter(p => p!.dias_retorno && p!.dias_retorno > 0);
-          const smallestRetorno = procsWithRetorno.length > 0
-            ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-            : null;
-          if (smallestRetorno) {
-            const retornoDate = new Date(editData + "T00:00:00");
-            retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-            if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-            updatePayload.data = retornoDate.toISOString().slice(0, 10);
-          }
-        }
-
-        if (Object.keys(updatePayload).length > 0) {
-          await supabase.from("agendamentos").update(updatePayload).eq("id", ret.id);
-        }
-
-        // Update junction table for return too if procedures changed
-        const procsChanged = JSON.stringify(editProcedimentoIds.sort()) !== JSON.stringify(originalProcIds.sort());
-        if (procsChanged) {
-          await supabase.from("agendamento_procedimentos").delete().eq("agendamento_id", ret.id);
-          for (const procId of editProcedimentoIds) {
-            await supabase.from("agendamento_procedimentos").insert({
-              agendamento_id: ret.id,
-              procedimento_id: procId,
-            } as any);
-          }
-        }
-      }
-
-      if (linkedReturns.length > 0) {
-        toast.info("Retorno(s) automático(s) atualizado(s) também.");
-      }
-    }
 
     setEditingId(null);
     fetchData();
@@ -666,24 +510,12 @@ const Agenda = () => {
                 {/* Agendamentos */}
                 {dayAppointments
                   .map(a => {
-                  const isRetorno = isRetornoAuto(a);
-                  const isConfirmado = isRetornoConfirmado(a);
-                  const cardClass = isRetorno
-                    ? "bg-blue-500/10 border border-blue-500/30"
-                    : isConfirmado
-                      ? "bg-green-500/10 border border-green-500/30"
-                      : "bg-accent/40";
-                  const accentColor = isRetorno ? "text-blue-500" : isConfirmado ? "text-green-600" : "text-primary";
-                  const dividerColor = isRetorno ? "bg-blue-500/30" : isConfirmado ? "bg-green-500/30" : "bg-primary/30";
-
                   return (
-                    <div key={a.id} className={`flex flex-col gap-2 p-3 rounded-xl group cursor-pointer ${cardClass}`} onClick={() => setDetailAppt(a)}>
+                    <div key={a.id} className="flex flex-col gap-2 p-3 rounded-xl group cursor-pointer bg-accent/40" onClick={() => setDetailAppt(a)}>
                       <div className="flex gap-3">
                         <div className="flex flex-col items-center gap-1 min-w-[36px]">
-                          {isRetorno ? <RotateCcw size={12} className="text-blue-500" />
-                            : isConfirmado ? <Check size={12} className="text-green-600" />
-                            : <Clock size={12} className="text-primary" />}
-                          <span className={`text-xs font-body font-medium ${accentColor}`}>
+                          <Clock size={12} className="text-primary" />
+                          <span className="text-xs font-body font-medium text-primary">
                             {a.horario.slice(0, 5)}
                             {a.duracao_minutos ? (() => {
                               const [h, m] = a.horario.split(":").map(Number);
@@ -692,25 +524,15 @@ const Agenda = () => {
                             })() : ""}
                           </span>
                         </div>
-                        <div className={`h-auto w-px ${dividerColor}`} />
+                        <div className="h-auto w-px bg-primary/30" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <User size={11} className="text-muted-foreground flex-shrink-0" />
                             <p className="text-xs font-body font-medium truncate">{a.paciente_nome}</p>
                           </div>
                           <p className="text-[11px] text-muted-foreground font-body">{getApptProcNames(a)}</p>
-                          {isRetorno && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-blue-500/20 text-blue-600">
-                              <RotateCcw size={9} /> Retorno automático
-                            </span>
-                          )}
-                          {isConfirmado && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-body font-medium bg-green-500/20 text-green-700">
-                              <Check size={9} /> Retorno confirmado
-                            </span>
-                          )}
                         </div>
-                        <div className={`flex gap-1 self-start ${!isRetorno && !isConfirmado ? "opacity-0 group-hover:opacity-100" : ""} transition-all`}>
+                        <div className="flex gap-1 self-start opacity-0 group-hover:opacity-100 transition-all">
                           <button onClick={(e) => { e.stopPropagation(); startEdit(a); }} className="text-muted-foreground hover:text-primary p-1" title="Editar">
                             <Pencil size={13} />
                           </button>
@@ -719,16 +541,6 @@ const Agenda = () => {
                           </button>
                         </div>
                       </div>
-                      {isRetorno && (
-                        <div className="flex gap-1.5 ml-[45px]">
-                          <button onClick={(e) => { e.stopPropagation(); handleConfirmRetorno(a); }} className="flex items-center gap-1 text-xs font-body text-green-600 hover:text-green-700 hover:bg-green-100 px-2 py-1 rounded transition-colors" title="Confirmar retorno">
-                            <Check size={13} strokeWidth={2.5} /> Confirmar
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleRejectRetorno(a.id); }} className="flex items-center gap-1 text-xs font-body text-destructive hover:bg-destructive/10 px-2 py-1 rounded transition-colors" title="Cancelar retorno">
-                            <X size={13} strokeWidth={2.5} /> Cancelar
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -973,16 +785,6 @@ const Agenda = () => {
                   <p className="text-sm font-body">{detailAppt.observacoes}</p>
                 </div>
               )}
-              {isRetornoAuto(detailAppt) && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-blue-500/15 text-blue-600 w-fit">
-                  <RotateCcw size={12} /> Retorno automático
-                </span>
-              )}
-              {isRetornoConfirmado(detailAppt) && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-body font-medium bg-green-500/15 text-green-700 w-fit">
-                  <Check size={12} /> Retorno confirmado
-                </span>
-              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setDetailAppt(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-body hover:bg-muted transition-colors">Fechar</button>
@@ -1002,14 +804,10 @@ const Agenda = () => {
               <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
                 <AlertTriangle size={20} className="text-destructive" />
               </div>
-              <h3 className="font-display text-lg">
-                {confirmDeleteType === "retorno" ? "Cancelar retorno?" : "Excluir agendamento?"}
-              </h3>
+              <h3 className="font-display text-lg">Excluir agendamento?</h3>
             </div>
             <p className="text-sm text-muted-foreground font-body mb-5">
-              {confirmDeleteType === "retorno"
-                ? "O retorno automático será cancelado e também removido do histórico do paciente."
-                : "O agendamento será excluído e também removido do histórico do paciente."}
+              O agendamento será excluído e também removido do histórico do paciente.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">
