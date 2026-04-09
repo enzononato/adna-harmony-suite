@@ -409,12 +409,13 @@ const Agenda = () => {
 
     const original = agendamentos.find(a => a.id === editingId);
 
+    const editObsWithOutros = [editObs.trim(), editOutrosDescricao.trim() ? `Outros: ${editOutrosDescricao.trim()}` : ""].filter(Boolean).join(" | ") || null;
     const { error } = await supabase.from("agendamentos").update({
       paciente_nome: editPaciente.trim(),
       procedimento_id: editProcedimentoIds[0] || null,
       data: editData,
       horario: editHorario,
-      observacoes: editObs.trim() || null,
+      observacoes: editObsWithOutros,
       duracao_minutos: dur,
     } as any).eq("id", editingId);
     if (error) { toast.error("Erro ao atualizar."); return; }

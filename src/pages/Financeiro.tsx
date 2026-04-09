@@ -56,6 +56,7 @@ const Financeiro = () => {
   // Entrada form - multi-procedure
   const [ePaciente, setEPaciente] = useState("");
   const [eProcedimentos, setEProcedimentos] = useState<string[]>([]);
+  const [eOutrosDescricao, setEOutrosDescricao] = useState("");
   const [eValor, setEValor] = useState("");
   const [ePagamento, setEPagamento] = useState("PIX");
   const [eObs, setEObs] = useState("");
