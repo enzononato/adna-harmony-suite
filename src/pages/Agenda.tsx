@@ -64,6 +64,7 @@ const Agenda = () => {
   const [newPacienteSearch, setNewPacienteSearch] = useState("");
   const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
   const [newProcedimentoIds, setNewProcedimentoIds] = useState<string[]>([]);
+  const [newOutrosDescricao, setNewOutrosDescricao] = useState("");
   const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
   const [newHorario, setNewHorario] = useState("");
   const [newObs, setNewObs] = useState("");
@@ -75,6 +76,7 @@ const Agenda = () => {
   const [editPacienteSearch, setEditPacienteSearch] = useState("");
   const [showEditPacienteDropdown, setShowEditPacienteDropdown] = useState(false);
   const [editProcedimentoIds, setEditProcedimentoIds] = useState<string[]>([]);
+  const [editOutrosDescricao, setEditOutrosDescricao] = useState("");
   const [editData, setEditData] = useState("");
   const [editHorario, setEditHorario] = useState("");
   const [editObs, setEditObs] = useState("");
@@ -208,12 +210,13 @@ const Agenda = () => {
       return;
     }
 
+    const obsWithOutros = [newObs.trim(), newOutrosDescricao.trim() ? `Outros: ${newOutrosDescricao.trim()}` : ""].filter(Boolean).join(" | ") || null;
     const { data: newAgend, error } = await supabase.from("agendamentos").insert({
       paciente_nome: newPaciente.trim(),
       procedimento_id: newProcedimentoIds[0],
       data: newData,
       horario: newHorario,
-      observacoes: newObs.trim() || null,
+      observacoes: obsWithOutros,
       duracao_minutos: dur,
     } as any).select("id").single();
     if (error || !newAgend) { toast.error("Erro ao salvar agendamento."); return; }
@@ -406,12 +409,13 @@ const Agenda = () => {
 
     const original = agendamentos.find(a => a.id === editingId);
 
+    const editObsWithOutros = [editObs.trim(), editOutrosDescricao.trim() ? `Outros: ${editOutrosDescricao.trim()}` : ""].filter(Boolean).join(" | ") || null;
     const { error } = await supabase.from("agendamentos").update({
       paciente_nome: editPaciente.trim(),
       procedimento_id: editProcedimentoIds[0] || null,
       data: editData,
       horario: editHorario,
-      observacoes: editObs.trim() || null,
+      observacoes: editObsWithOutros,
       duracao_minutos: dur,
     } as any).eq("id", editingId);
     if (error) { toast.error("Erro ao atualizar."); return; }
@@ -525,7 +529,7 @@ const Agenda = () => {
   };
 
   const resetForm = () => {
-    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoIds([]); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
+    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoIds([]); setNewOutrosDescricao(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
   };
 
   const openNewModal = () => {
@@ -770,6 +774,8 @@ const Agenda = () => {
                 procedimentos={procedimentos}
                 selectedIds={editProcedimentoIds}
                 onChange={(ids) => { setEditProcedimentoIds(ids); setEditDuracao(recalcDuration(ids)); }}
+                outrosDescricao={editOutrosDescricao}
+                onOutrosDescricaoChange={setEditOutrosDescricao}
               />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
@@ -833,6 +839,8 @@ const Agenda = () => {
                 procedimentos={procedimentos}
                 selectedIds={newProcedimentoIds}
                 onChange={(ids) => { setNewProcedimentoIds(ids); setNewDuracao(recalcDuration(ids)); }}
+                outrosDescricao={newOutrosDescricao}
+                onOutrosDescricaoChange={setNewOutrosDescricao}
               />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>

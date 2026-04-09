@@ -14,6 +14,8 @@ interface ProcedimentoMultiSelectProps {
   showPreco?: boolean;
   label?: string;
   maxHeight?: string;
+  outrosDescricao?: string;
+  onOutrosDescricaoChange?: (value: string) => void;
 }
 
 const fmt = (v: number) =>
@@ -26,6 +28,8 @@ const ProcedimentoMultiSelect = ({
   showPreco = false,
   label = "Procedimentos *",
   maxHeight = "10rem",
+  outrosDescricao = "",
+  onOutrosDescricaoChange,
 }: ProcedimentoMultiSelectProps) => {
   const toggle = (id: string) => {
     onChange(
@@ -34,6 +38,9 @@ const ProcedimentoMultiSelect = ({
         : [...selectedIds, id]
     );
   };
+
+  const outrosProc = procedimentos.find((p) => p.nome === "Outros");
+  const isOutrosSelected = outrosProc ? selectedIds.includes(outrosProc.id) : false;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -81,6 +88,20 @@ const ProcedimentoMultiSelect = ({
           );
         })}
       </div>
+      {isOutrosSelected && (
+        <div className="flex flex-col gap-1 mt-1">
+          <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">
+            Descreva o procedimento *
+          </label>
+          <input
+            type="text"
+            value={outrosDescricao}
+            onChange={(e) => onOutrosDescricaoChange?.(e.target.value)}
+            placeholder="Ex: Drenagem linfática"
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          />
+        </div>
+      )}
       {selectedIds.length > 0 && (
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary">
