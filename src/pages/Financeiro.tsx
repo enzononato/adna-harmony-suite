@@ -597,6 +597,8 @@ const Financeiro = () => {
                 selectedIds={eProcedimentos}
                 onChange={(ids) => { setEProcedimentos(ids); setEValor(recalcEntradaValor(ids)); }}
                 showPreco
+                outrosDescricao={eOutrosDescricao}
+                onOutrosDescricaoChange={setEOutrosDescricao}
               />
               <div className="grid grid-cols-2 gap-3">
                 <div>
