@@ -127,9 +127,10 @@ const Financeiro = () => {
 
   const handleAddEntrada = async () => {
     if (!ePaciente || eProcedimentos.length === 0 || !eValor) { toast.error("Preencha paciente, procedimento(s) e valor."); return; }
+    const obsWithOutros = [eObs.trim(), eOutrosDescricao.trim() ? `Outros: ${eOutrosDescricao.trim()}` : ""].filter(Boolean).join(" | ") || null;
     const { data: newEntrada, error } = await supabase.from("entradas").insert({
       paciente_nome: ePaciente, procedimento_id: eProcedimentos[0], valor: parseFloat(eValor),
-      forma_pagamento: ePagamento, observacoes: eObs || null, data: eData,
+      forma_pagamento: ePagamento, observacoes: obsWithOutros, data: eData,
     }).select("id").single();
     if (error || !newEntrada) { toast.error("Erro ao salvar entrada."); return; }
 
@@ -143,7 +144,7 @@ const Financeiro = () => {
 
     toast.success("Entrada registrada!");
     setShowEntradaModal(false);
-    setEPaciente(""); setEProcedimentos([]); setEValor(""); setEObs("");
+    setEPaciente(""); setEProcedimentos([]); setEOutrosDescricao(""); setEValor(""); setEObs("");
     fetchData();
   };
 
