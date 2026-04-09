@@ -528,7 +528,7 @@ const Agenda = () => {
   };
 
   const resetForm = () => {
-    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoIds([]); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
+    setNewPaciente(""); setNewPacienteSearch(""); setNewProcedimentoIds([]); setNewOutrosDescricao(""); setNewData(new Date().toISOString().slice(0, 10)); setNewHorario(""); setNewObs(""); setNewDuracao("");
   };
 
   const openNewModal = () => {
@@ -773,6 +773,8 @@ const Agenda = () => {
                 procedimentos={procedimentos}
                 selectedIds={editProcedimentoIds}
                 onChange={(ids) => { setEditProcedimentoIds(ids); setEditDuracao(recalcDuration(ids)); }}
+                outrosDescricao={editOutrosDescricao}
+                onOutrosDescricaoChange={setEditOutrosDescricao}
               />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
@@ -836,6 +838,8 @@ const Agenda = () => {
                 procedimentos={procedimentos}
                 selectedIds={newProcedimentoIds}
                 onChange={(ids) => { setNewProcedimentoIds(ids); setNewDuracao(recalcDuration(ids)); }}
+                outrosDescricao={newOutrosDescricao}
+                onOutrosDescricaoChange={setNewOutrosDescricao}
               />
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase tracking-widest text-muted-foreground font-body">Data *</label>
