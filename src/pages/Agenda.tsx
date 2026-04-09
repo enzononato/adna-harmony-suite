@@ -850,7 +850,6 @@ const Agenda = () => {
             <p className="text-sm text-muted-foreground font-body mb-5">
               O agendamento será excluído e também removido do histórico do paciente.
             </p>
-            </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-body hover:bg-muted transition-colors">
                 Não
