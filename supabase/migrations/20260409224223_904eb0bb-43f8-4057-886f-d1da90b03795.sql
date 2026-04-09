@@ -1,0 +1,1 @@
+INSERT INTO public.procedimentos (nome) VALUES ('PEIM'), ('Botox'), ('Outros') ON CONFLICT DO NOTHING;
