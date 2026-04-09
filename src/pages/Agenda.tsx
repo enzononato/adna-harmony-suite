@@ -231,47 +231,6 @@ const Agenda = () => {
 
     toast.success("Agendamento salvo!");
 
-    // Retorno automático - use smallest dias_retorno
-    const selectedProcs = newProcedimentoIds.map(id => procedimentos.find(p => p.id === id)).filter(Boolean);
-    const procsWithRetorno = selectedProcs.filter(p => p!.dias_retorno && p!.dias_retorno > 0);
-    const smallestRetorno = procsWithRetorno.length > 0
-      ? procsWithRetorno.reduce((min, p) => (p!.dias_retorno! < min ? p!.dias_retorno! : min), procsWithRetorno[0]!.dias_retorno!)
-      : null;
-
-    if (smallestRetorno) {
-      const retornoDate = new Date(newData + "T00:00:00");
-      retornoDate.setDate(retornoDate.getDate() + smallestRetorno);
-      if (retornoDate.getDay() === 0) retornoDate.setDate(retornoDate.getDate() + 1);
-      const retornoDateStr = retornoDate.toISOString().slice(0, 10);
-
-      const { data: retAgend, error: retErr } = await supabase.from("agendamentos").insert({
-        paciente_nome: newPaciente.trim(),
-        procedimento_id: newProcedimentoIds[0],
-        data: retornoDateStr,
-        horario: newHorario,
-        observacoes: "Retorno automático",
-        duracao_minutos: dur,
-      } as any).select("id").single();
-
-      const retornoFormatted = retornoDate.toLocaleDateString("pt-BR");
-      if (retErr || !retAgend) {
-        toast.error(`Erro ao criar retorno automático para ${retornoFormatted}.`);
-      } else {
-        // Insert junction rows for retorno
-        for (const procId of newProcedimentoIds) {
-          await supabase.from("agendamento_procedimentos").insert({
-            agendamento_id: retAgend.id,
-            procedimento_id: procId,
-          } as any);
-        }
-        const hasConflict = checkOverlap(retornoDateStr, newHorario, dur);
-        if (hasConflict) {
-          toast.warning(`Retorno agendado para ${retornoFormatted}, mas há conflito de horário. Ajuste manualmente.`);
-        } else {
-          toast.success(`Retorno agendado automaticamente para ${retornoFormatted}.`);
-        }
-      }
-    }
 
     const isRegistered = pacientes.some(p => p.nome.toLowerCase() === newPaciente.trim().toLowerCase());
     const savedName = newPaciente.trim();
