@@ -64,6 +64,7 @@ const Agenda = () => {
   const [newPacienteSearch, setNewPacienteSearch] = useState("");
   const [showPacienteDropdown, setShowPacienteDropdown] = useState(false);
   const [newProcedimentoIds, setNewProcedimentoIds] = useState<string[]>([]);
+  const [newOutrosDescricao, setNewOutrosDescricao] = useState("");
   const [newData, setNewData] = useState(new Date().toISOString().slice(0, 10));
   const [newHorario, setNewHorario] = useState("");
   const [newObs, setNewObs] = useState("");
@@ -75,6 +76,7 @@ const Agenda = () => {
   const [editPacienteSearch, setEditPacienteSearch] = useState("");
   const [showEditPacienteDropdown, setShowEditPacienteDropdown] = useState(false);
   const [editProcedimentoIds, setEditProcedimentoIds] = useState<string[]>([]);
+  const [editOutrosDescricao, setEditOutrosDescricao] = useState("");
   const [editData, setEditData] = useState("");
   const [editHorario, setEditHorario] = useState("");
   const [editObs, setEditObs] = useState("");
